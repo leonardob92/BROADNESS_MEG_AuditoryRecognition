@@ -14,4 +14,4 @@ Please, note:
 
 -BroadNess_APR2020_2.m contains statistical testing and several tests performed in relation to the PCA computation.
 
--If you wish to use our code for running PCA and derive brain networks, please refer to the function: PCA_LBPD.mat which is available here: https://github.com/leonardob92/LBPD-1.0 and on the example usage available at the end of the script: "BroadNess_APR2020.m"
+-If you wish to use our code for running PCA and derive brain networks, please refer to the function: PCA_LBPD.mat which is available here: https://github.com/leonardob92/LBPD-1.0 and to the following short script showing how to use it: "PCA_UseMe.m"
