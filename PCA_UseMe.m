@@ -6,6 +6,7 @@
 % 2) The function is available at the following link: https://github.com/leonardob92/LBPD-1.0
 % 3) Please, also note that if you want to plot the brain networks in nifti images
 %    you should download the full LBPD ot the following toolboox: https://se.mathworks.com/matlabcentral/fileexchange/8797-tools-for-nifti-and-analyze-image
+%    Alternatively, set S.fig_l = 0
 
 S = []; %opening a Matlab structure
 S.H = dum(:,:,1:5); %providing the data (space x time x conditions); conditions here will be averaged in the functions and PCA computed on their average
