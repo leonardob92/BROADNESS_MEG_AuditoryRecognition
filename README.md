@@ -1,7 +1,7 @@
 BROADband brain Network Estimation via Source Separation (BROAD-NESS)
 
 Matlab leading scripts for the paper entitled: "BROADband brain Network Estimation via Source Separation (BROAD-NESS)", BioRxiv (2024). L. Bonetti, G. Fernández Rubio, M.H. Andersen, C. Malvaso, F. Carlomagno, C. Testa, P. Vuust, M.L. Kringelbach, M. Rosso.
-The link to the preprint will be made available shortly. 
+https://www.biorxiv.org/content/10.1101/2024.10.31.621257v1.abstract
 
 Additional relevant codes and functions are available here: https://github.com/leonardob92/LBPD-1.0.git
 
