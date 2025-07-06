@@ -65,7 +65,7 @@ close all
 clc
 
 % Setup directories
-path_home = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025';
+path_home = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox';
 addpath(path_home)
 BROADNESS_Startup(path_home);
 
@@ -125,7 +125,7 @@ BROADNESS = BROADNESS_NetworkEstimation(data, time, ...
 % Minimal user settings: output folder and MNI coordinates of original brain voxel data
 Options = [];
 Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
-load([path_home '/BROADNESS_Toolbox/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
+load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
 
 %%% ------------------ COMPUTATION --------------------- %%%
@@ -147,10 +147,10 @@ BROADNESS_Visualizer(BROADNESS,Options)
 % Minimal user settings: output folder
 Options = [];
 Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
-load([path_home '/BROADNESS_Toolbox/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
+load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
-Options.WhichPlots = [0 0 0 1 0]; %which plots to be generated
-Options.ncomps = 5; %number of PCs to be plotted (all plots)
+% Options.WhichPlots = [0 0 1 0 0]; %which plots to be generated
+Options.ncomps = [2:3]; %indices of PCs to be plotted (all plots)
 Options.ncomps_var = 60; %number of PCs to be plotted (only in Variance plot)
 Options.Labels = {'Memorized','NewT1','NewT2','NewT3','NewT4'}; %experimental condition labels
 Options.color_PCs = [
@@ -178,7 +178,7 @@ Options.color_conds = [
 % NOTE: This removal works only for 8mm brain
 remove_cerebellum_label = 0;
 if remove_cerebellum_label == 1
-    load([path_home '/BROADNESS_Toolbox/BROADNESS_External/cerebellum_coords.mat']); %only cerebellar voxels
+    load([path_home '/BROADNESS_External/cerebellum_coords.mat']); %only cerebellar voxels
     % Remove cerebellar voxels since they are not included in the 3D brain template (#4)
     [~, idx_cerebellum] = ismember(MNI8, cerebellum_coords, 'rows');  % find cerebellum indexes in MNI coordinates matrix (all voxels)
     MNI8(idx_cerebellum~=0,:) = nan; %assigning nans to MNI coordinates matrix
