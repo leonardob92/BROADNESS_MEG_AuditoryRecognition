@@ -60,6 +60,9 @@
 
 %% STARTUP
 
+% Simply download the BROADNESS Toolbox folder and place it in your working directory,
+% making sure not to alter the structure of its functions, subfolders, or files.
+
 clear 
 close all
 clc
