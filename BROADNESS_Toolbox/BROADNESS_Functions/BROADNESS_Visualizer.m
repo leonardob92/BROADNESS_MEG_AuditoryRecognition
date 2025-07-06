@@ -66,11 +66,12 @@ function BROADNESS_Visualizer(BROADNESS, Options)
 %                               added to the name of the nifti image)
 %      - Options.MNI_coords   : MNI coordinates provided in the same order as your data
 %                               (N x 3, where N is the brain voxel number)
-%      - Options.ncomps       : Number of components (networks) to plot in all plots but Variance plot.
+%      - Options.ncomps       : Components (networks) indices to be plotted in all plots but Variance plot
+%                               (e.g. [1:5] for first 5 components or [2 5] for components 2 and 5).
 %                               If the field is not provided, the default is to plot:
 %                               - the MCS significant networks (if MCS was computed)
 %                               - the first 5 networks
-%      - Options.ncomps_var   : Number of components (networks) to plot in the Variance plot.
+%      - Options.ncomps_var   : Number (!) of components (networks) to plot in the Variance plot.
 %                               Default: first 20 components.
 %      - Options.Labels       : If the original data matrix is 3D, here you can provide the labels
 %                               of the experimental conditions.
@@ -154,23 +155,23 @@ else %otherwise default is assigned
     ncomps_var = 20;
 end
 
-if isfield(Options,'ncomps') %if number of components to be plotted is provided
-    ncomps = Options.ncomps; %extracting it
+if isfield(Options,'ncomps') %if components indices to be plotted are provided
+    ncomps = Options.ncomps; %extracting them
 elseif ~ischar(BROADNESS.Significant_BrainNetworks) %otherwise if MCS was previously computed
-    ncomps = length(BROADNESS.Significant_BrainNetworks); %extracting number of significant PCs
+    ncomps = BROADNESS.Significant_BrainNetworks; %extracting indices of significant PCs
 else %otherwise default is assigned
-    ncomps = 5;
+    ncomps = 1:5;
 end
 
 % Checking if colors are provided for PCs and experimental conditions, otherwise assigning default
 if isfield(Options,'color_PCs') %PCs
     col_comp = Options.color_PCs;
-    if size(col_comp,1) < ncomps
+    if size(col_comp,1) < length(ncomps)
         warning('You have more PCs than supplied colors.. thus assigning colors by default')
-        col_comp = .8*cool(ncomps); %color mapping for PCs
+        col_comp = .8*cool(length(ncomps)); %color mapping for PCs
     end
 else
-    col_comp = .8*cool(ncomps); %color mapping for PCs
+    col_comp = .8*cool(length(ncomps)); %color mapping for PCs
 end
 if isfield(Options,'color_conds') %conditions
     col_cond = Options.color_conds;
@@ -250,17 +251,17 @@ if Options.WhichPlots(3) == 1
     
     disp('Generating time series plots for brain networks...');
     
-    for compi = 1:ncomps %over selected PCs
+    for compi = 1:length(ncomps) %over selected PCs
         figure
         for condi = 1:size(data,3) %over experimental conditions
-            plot(time(1:size(BROADNESS.ActivationPatterns_BrainNetworks,2)),BROADNESS.TimeSeries_BrainNetworks(:,compi,condi),'Color',col_cond(condi,:),'LineWidth',2,'DisplayName',[Labels{condi}])
+            plot(time(1:size(BROADNESS.ActivationPatterns_BrainNetworks,2)),BROADNESS.TimeSeries_BrainNetworks(:,ncomps(compi),condi),'Color',col_cond(condi,:),'LineWidth',2,'DisplayName',[Labels{condi}])
             hold on
         end
         xlim([time(1) time(end)])
         set(gcf,'color','w')
         legend('show')
         grid minor
-        title(['Time Series - Brain Networks # ' num2str(compi) ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(compi))], 'FontWeight', 'bold', 'FontSize', 14);
+        title(['Time Series - Brain Networks # ' num2str(ncomps(compi)) ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(ncomps(compi)))], 'FontWeight', 'bold', 'FontSize', 14);
         xlabel('Time (s)'); ylabel('Component Amplitude');
     end
 end
@@ -280,11 +281,11 @@ if Options.WhichPlots(4) == 1
     % Opening figure
     openfig('BrainTemplate_GT.fig')
     hold on
-    legend_handles = gobjects(1, ncomps); % Preallocate legend handles
+    legend_handles = gobjects(1, length(ncomps)); % Preallocate legend handles
     
-    for compi = 1:ncomps %over selected PCs
+    for compi = 1:length(ncomps) %over selected PCs
         % Assigning temporary activation pattern to plot
-        pat2plot = ActPat(:,compi);
+        pat2plot = ActPat(:,ncomps(compi));
         pat2plot( pat2plot < (mean(pat2plot)+thresh_nsdt*std(pat2plot)) ) = nan;  % apply threshold
         pat2plot(isnan(Options.MNI_coords(:,1))) = nan;
         
@@ -298,16 +299,16 @@ if Options.WhichPlots(4) == 1
         
         % Plotting in 3D
         for voxi = 1:skipper:length(pat2plot)
-            plot3( mni2plot(voxi,1), mni2plot(voxi,2), mni2plot(voxi,3), '.', 'Color', col_comp(compi,:), 'MarkerSize', scale_size * pat2plot(voxi) );
+            plot3( mni2plot(voxi,1), mni2plot(voxi,2), mni2plot(voxi,3), '.', 'Color', col_comp(ncomps(compi),:), 'MarkerSize', scale_size * pat2plot(voxi) );
             hold on
         end
         
         % Using NaN to avoid plotting actual points, just storing color info
-        legend_handles(compi) = plot3(nan, nan, nan, '.', 'Color', col_comp(compi,:), 'MarkerSize', 12);    
+        legend_handles(compi) = plot3(nan, nan, nan, '.', 'Color', col_comp(ncomps(compi),:), 'MarkerSize', 12);    
     end
    
     % Adjusting legend properties
-    legend(legend_handles, arrayfun(@(x) sprintf('Component %d', x), 1:ncomps, 'UniformOutput', false), ...
+    legend(legend_handles, arrayfun(@(x) sprintf('Component %d', x), ncomps, 'UniformOutput', false), ...
         'FontSize', 14, ...  % Increasing font size
         'Location', 'northeastoutside'); % Moving legend outside the plot area
     set(legend_handles, 'MarkerSize', 20); % Increasing marker size in legend
@@ -346,7 +347,7 @@ if Options.WhichPlots(5) == 1
     % Extracting MNI coordinates
     MNI_coords = Options.MNI_coords;
     
-    for compi = 1:ncomps  % Over components given as input
+    for compi = 1:length(ncomps) % Over components given as input
         
         num_points = size(MNI_coords, 1);
         voxel_coords = zeros(num_points, 3);
@@ -372,7 +373,7 @@ if Options.WhichPlots(5) == 1
             dims = size(nii_data);
             if x > 0 && x <= dims(1) && y > 0 && y <= dims(2) && z > 0 && z <= dims(3)
                 %             if all([x, y, z] > 0) && all([x, y, z] <= size(nii_data))
-                nii_data(x, y, z) = ActPat(ii, compi);
+                nii_data(x, y, z) = ActPat(ii, ncomps(compi));
             end
         end
         
@@ -384,10 +385,10 @@ if Options.WhichPlots(5) == 1
         nii.hdr.hist = template_nii.hdr.hist;  % Copying header information from mask
         
         % Displaying saving progress
-        disp(['Saving NIFTI images - PC ' num2str(compi)])
+        disp(['Saving NIFTI images - PC ' num2str(ncomps(compi))])
         
         % Saving the NIFTI file
-        save_nii(nii, [nifti_path '/ActivationPattern_BrainNetwork_#' num2str(compi) '.nii']);
+        save_nii(nii, [nifti_path '/ActivationPattern_BrainNetwork_#' num2str(ncomps(compi)) '.nii']);
     end
 end
 
