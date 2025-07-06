@@ -20,6 +20,11 @@
 %  version (consisting of preprocessed epoched data) is avaiable here:
 %  https://zenodo.org/records/10715160
 %  The dataset in this format will be made publicly available soon.
+%  Please, note that the data averaged across participants is used to
+%  estimate the brain networks but not to compute statistics which is
+%  instead performed after reconstructing the brain networks time series
+%  for each participant. The code for this procedure is available in the
+%  current repository and will soon be integrated in the Toolbox.
 %
 %  The experimental task is described in detail both in the BROADNESS paper
 %  referenced above and in the following paper:
