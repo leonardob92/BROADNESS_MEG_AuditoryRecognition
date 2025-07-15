@@ -163,8 +163,8 @@ else %otherwise default is assigned
     ncomps = 1:5;
 end
 
-if ncomps > size(BROADNESS.ActivationPatterns_BrainNetworks,2) %if the requested components are more than the actual component..
-    ncomps = 1:size(BROADNESS.ActivationPatterns_BrainNetworks,2); %assigning by default the maximum number of existing components to be plotted
+if length(ncomps) > size(BROADNESS.TimeSeries_BrainNetworks,2) %if the requested components are more than the actual component..
+    ncomps = 1:size(BROADNESS.TimeSeries_BrainNetworks,2); %assigning by default the maximum number of existing components to be plotted
 end
 
 % Checking if colors are provided for PCs and experimental conditions, otherwise assigning default
