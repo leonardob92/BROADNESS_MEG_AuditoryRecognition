@@ -1,6 +1,6 @@
 %
 % ========================================================================
-%  BROADBAND (BRAIN) NETWORK ESTIMATION VIA SOURCE SEPARATION (BROADNESS) TOOLBOX
+%  BROADBAND BRAIN NETWORK ESTIMATION VIA SOURCE SEPARATION (BROADNESS) TOOLBOX
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
@@ -20,11 +20,38 @@
 %  version (consisting of preprocessed epoched data) is avaiable here:
 %  https://zenodo.org/records/10715160
 %  The dataset in this format will be made publicly available soon.
-%  Please, note that the data averaged across participants is used to
-%  estimate the brain networks but not to compute statistics which is
-%  instead performed after reconstructing the brain networks time series
-%  for each participant. The code for this procedure is available in the
-%  current repository and will soon be integrated in the Toolbox.
+%
+%
+%  PLEASE, NOTE:
+%  The BROADNESS toolbox (PCA or ICA) can be run on data averaged across
+%  participants to estimate the *spatial patterns* (brain networks). 
+%  However, statistical analyses should NOT be performed on the group-averaged 
+%  time series — instead, they should be computed at the participant level.
+%
+%  Recommended workflow:
+%    1) Run BROADNESS_NetworkEstimation (PCA) or 
+%       BROADNESS_AlternativeNetworkEstimation_ICA (ICA) 
+%       on data averaged across participants to estimate the networks.
+%
+%    2) From the output, extract:
+%          ActivationPatterns_BrainNetworks
+%       (matrix of spatial patterns: [voxels × networks])
+%
+%    3) For each participant, project their own data onto these spatial patterns:
+%          participant_TS = participant_data(:, 1:size(ActivationPatterns_BrainNetworks,2))' * ActivationPatterns_BrainNetworks;
+%       This yields participant-specific network time series using the group-defined networks.
+%
+%    4) Perform your preferred statistical analyses on these participant-level
+%       time series according to your experimental design.
+%
+%  This approach provides a fast, reliable way to estimate networks from 
+%  group data, while ensuring that statistics are computed at the individual level.
+%
+%  We will soon release an example pipeline demonstrating these steps in code.
+%  Until then, feel free to reach out for guidance:
+%    Leonardo Bonetti  – leonardo.bonetti@clin.au.dk | leonardo.bonetti@psych.ox.ac.uk
+%    Mattia Rosso      – mattia.rosso@clin.au.dk
+%
 %
 %  The experimental task is described in detail both in the BROADNESS paper
 %  referenced above and in the following paper:
@@ -38,32 +65,45 @@
 % ------------------------------------------------------------------------
 %  FUNCTIONS OVERVIEW:
 % ------------------------------------------------------------------------
-%  - BROADNESS_Startup(path_home) 
-%    Initializes the environment. Given `path_home` as input, it sets up 
-%    the necessary directories.
+%  - 0) BROADNESS_Startup() 
+%       Initializes the environment.
 %
-%  - BROADNESS_NetworkEstimation(...) 
-%    Performs PCA on the event-related field/potentials to derive the
-%    underlying brain networks.
+%  - 1) BROADNESS_NetworkEstimation() 
+%       Performs PCA on the event-related field/potentials to derive the
+%       underlying brain networks.
 %
-%  - BROADNESS_Visualizer(...) 
-%    Takes as input selected outputs from `BROADNESS_NetworkEstimation` 
-%    to visualize a number of features such as brain network time series
-%    and topographies.
+%  - 2) BROADNESS_Visualizer() 
+%       Takes as input selected outputs from `BROADNESS_NetworkEstimation` 
+%       to visualize a number of features such as brain network time series
+%       and topographies.
+%
+%  - 3) BROADNESS_PhaseSpace_RQA()
+%       Computes phase space embedding and RQA on brain networks time
+%       series [it works for both the time series extracted by
+%       BROADNESS_NetworkEstimation (PCA) and BROADNESS_AlternativeNetworkEstimation_ICA (ICA)]
+%
+%  - 4) BROADNESS_SpatialGradients()
+%       Computes spatial gradients embedding and clustering on the spatial
+%       activation patterns of the brain networks
+%
+%  - 5) BROADNESS_AlternativeNetworkEstimation_ICA()
+%       Alternative computation of brain networks using ICA
 %
 % ------------------------------------------------------------------------
 %  AUTHORS:
-%  Leonardo Bonetti & Mattia Rosso
+%  Leonardo Bonetti, Chiara Malvaso & Mattia Rosso
 %  leonardo.bonetti@clin.au.dk; leonardo.bonetti@psych.ox.ac.uk
+%  chiara.malvaso@studio.unibo.it
 %  mattia.rosso@clin.au.dk
 %  Center for Music in the Brain, Aarhus University
 %  Centre for Eudaimonia and Human Flourishing, Linacre College, University of Oxford
-%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 05/07/2025
+%  Department of Physics, University of Bologna
+%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 08/08/2025
 % ========================================================================
 
 
 
-%% STARTUP
+%% 0) STARTUP
 
 % Simply download the BROADNESS Toolbox folder and place it in your working directory,
 % making sure not to alter the structure of its functions, subfolders, or files.
@@ -79,7 +119,7 @@ BROADNESS_Startup(path_home);
 
 %%
 
-%% PERFORM BROADNESS (ONLY ESSENTIAL INPUTS)
+%% 1) PERFORM BROADNESS (ONLY ESSENTIAL INPUTS)
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
@@ -93,7 +133,7 @@ BROADNESS = BROADNESS_NetworkEstimation(data, time);
 
 %%
 
-%% PERFORM BROADNESS (ALTERNATIVE SCENARIO WITH OPTIONAL INPUTS)
+%% 1b) PERFORM BROADNESS (ALTERNATIVE SCENARIO WITH OPTIONAL INPUTS)
 
 % This section demonstrates the same function as above,  
 % but with optional settings provided. Any missing arguments  
@@ -118,7 +158,7 @@ BROADNESS = BROADNESS_NetworkEstimation(data, time, ...
 
 %%
 
-%% BROADNESS VISUALIZATION
+%% 2) BROADNESS VISUALIZATION
 
 %This section generates 5 plots, described as follows:
 %   #1) Dynamic brain activity map of the original data
@@ -143,7 +183,7 @@ BROADNESS_Visualizer(BROADNESS,Options)
 
 %%
 
-%% BROADNESS VISUALIZATION (ALTERNATIVE SCENARIO WITH OPTIONAL INPUTS)
+%% 2b) BROADNESS VISUALIZATION (ALTERNATIVE SCENARIO WITH OPTIONAL INPUTS)
 
 % This section demonstrates the same function as above,  
 % but with optional settings provided. Any missing arguments  
@@ -157,8 +197,8 @@ Options = [];
 Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
 load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
-% Options.WhichPlots = [0 0 1 0 0]; %which plots to be generated
-Options.ncomps = [2:3]; %indices of PCs to be plotted (all plots)
+Options.WhichPlots = [0 0 1 0 0]; %which plots to be generated
+Options.ncomps = [1:3]; %indices of PCs to be plotted (all plots)
 Options.ncomps_var = 60; %number of PCs to be plotted (only in Variance plot)
 Options.Labels = {'Memorized','NewT1','NewT2','NewT3','NewT4'}; %experimental condition labels
 Options.color_PCs = [
@@ -200,6 +240,73 @@ BROADNESS_Visualizer(BROADNESS,Options)
 
 %%
 
+%% *** ANALYSIS ON SPATIAL-TEMPORAL FEATURES OF BROADNESS BRAIN NETWORKS ***
+
+%%
+
+%% 3) PHASE SPACE EMBEDDING AND RECURRENCE QUANTIFICATION ANALYSIS 
+
+%%% ------------------- USER SETTINGS ------------------- %%%
+
+% Simply use the structure outputted by the BROADNESS_NetworkEstimation function
+% Additional optional inputs can be provided, as described in the function. 
+
+RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'threshold',0.1,'video','on','figure','on');
+
+%%
+
+%% 4) SPATIAL GRADIENTS EMBEDDING AND CLUSTERING ANALYSIS
+
+%%% ------------------- USER SETTINGS ------------------- %%%
+
+% Simply use the structure outputted by the BROADNESS_NetworkEstimation function
+% Additional optional inputs can be provided, as described in the function. 
+
+SPATIAL_GRADIENTS_BROADNESS = BROADNESS_SpatialGradients(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'scatterplots','all','outpath','/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025');
+
+%%
+
+%% *** BROADNESS ALTERNATIVE NETWORK ESTIMATION - INDEPENDENT COMPONENT ANALYSIS (ICA) ***
+
+%% 5) BROADNESS ICA COMPUTATION
+
+%%% ------------------- USER SETTINGS ------------------- %%%
+
+% Simply loading data (brain_voxel-by-time matrix) and time
+load([path_home '/Data_Example.mat'])  % Resting-state data
+% Additional optional inputs can be provided, as described in the function. 
+
+BROADNESS_ICA = BROADNESS_AlternativeNetworkEstimation_ICA(data, time, 'icacomps', 5, 'total_varexp', 95);
+
+%% 2) BROADNESS VISUALIZATION (USED FOR ICA)
+
+%This section generates 5 plots, described as follows:
+%   #1) Dynamic brain activity map of the original data
+%   #2) Variance explained by the networks
+%   #3) Time series of the networks
+%   #4) Activation patterns of the networks (3D)
+%   #5) Activation patterns of the networks (nifti images)
+
+
+%%% ------------------- USER SETTINGS ------------------- %%%
+
+% Minimal user settings: output folder
+Options = [];
+Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
+load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
+Options.MNI_coords = MNI8;
+Options.WhichPlots = [0 0 1 0 0]; %which plots to be generated
+Options.ncomps = [3]; %indices of PCs to be plotted (all plots)
+Options.Labels = {'Memorized','NewT1','NewT2','NewT3','NewT4'}; %experimental condition labels
+
+
+%%% ------------------ COMPUTATION --------------------- %%%
+
+% Visualize brain networks features
+BROADNESS_Visualizer(BROADNESS_ICA,Options)
+
+%%
+
 %%
 
 %%
@@ -219,6 +326,7 @@ BROADNESS_Visualizer(BROADNESS,Options)
 % Leonardo Bonetti: leonardo.bonetti@clin.au.dk
 %                   leonardo.bonetti@psych.ox.ac.uk
 % Mattia Rosso:     mattia.rosso@clin.au.dk
+% Chiara Malvaso:   chiara.malvaso@studio.unibo.it
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
