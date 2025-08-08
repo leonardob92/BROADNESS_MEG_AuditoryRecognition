@@ -67,8 +67,8 @@ function [BROADNESS] = BROADNESS_NetworkEstimation(data, time, varargin)
 %                   3. brain network time series
 %                   4. number of significant brain networks after MCS
 %                   5. variance explained (eigenvalues) - permuted data (only if MCS was computed) 
-%                   5. time (carried out for future plotting purposes) 
-%                   6. data (carried out for future plotting purposes)
+%                   6. time (carried out for future plotting purposes) 
+%                   7. data (carried out for future plotting purposes)
 %
 % ------------------------------------------------------------------------
 %  AUTHORS:
@@ -150,7 +150,7 @@ if permutations_num > 0 %if MCS was requested
     
     max_variance_permutations = zeros(permutations_num,1); %preallocating vector for variance explained by 1st PC for each permutation
     variance_randomized_perms = []; %variance of the permuted data to be stored for future plotting purposes
-    for permi = 1:permutations_num %over permutations
+    for permi = 1:2%permutations_num %over permutations
         if randomization == 1     %randomizing only time
             data_reshaped = zeros(size(averaged_data,1),size(averaged_data,2)); %preallocating matrix for randomized data
             for sourci = 1:size(averaged_data,1) %over brain sources

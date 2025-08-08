@@ -125,6 +125,18 @@ function BROADNESS_Visualizer(BROADNESS, Options)
 data = BROADNESS.OriginalData;
 time = BROADNESS.Time;
 ActPat = BROADNESS.ActivationPatterns_BrainNetworks;
+TimeSeries = BROADNESS.TimeSeries_BrainNetworks;
+
+% Detect whether this BROADNESS struct is from PCA (has variance fields)
+isPCA = isfield(BROADNESS,'Variance_BrainNetworks') && ...
+    isnumeric(BROADNESS.Variance_BrainNetworks) && ...
+    ~isempty(BROADNESS.Variance_BrainNetworks);
+
+if isPCA
+    TimeLimit = size(BROADNESS.ActivationPatterns_BrainNetworks,2);
+else
+    TimeLimit = length(time);
+end
 
 if ~isfield(Options,'WhichPlots') % if request of which plots should be prepared is not provided
     Options.WhichPlots = ones(1,5);  % Assigning default
@@ -135,7 +147,7 @@ if Options.WhichPlots(4) == 1 && ~isfield(Options,'MNI_coords')
     error('MNI coordinates must be provided for 3d plotting in brain template.. (Options.WhichPlots = [0 0 0 1 0])')
 end
 
-% Checking if path and name to nifti file are provided   
+% Checking if path and name to nifti file are provided
 if Options.WhichPlots(5) == 1 && ~isfield(Options,'name_nii')
     error('Path and name to nifti file must be provided for saving nifti images.. (Options.WhichPlots = [0 0 0 0 1])')
 end
@@ -155,17 +167,29 @@ else %otherwise default is assigned
     ncomps_var = 20;
 end
 
-if isfield(Options,'ncomps') %if components indices to be plotted are provided
-    ncomps = Options.ncomps; %extracting them
-elseif ~ischar(BROADNESS.Significant_BrainNetworks) %otherwise if MCS was previously computed
-    ncomps = BROADNESS.Significant_BrainNetworks; %extracting indices of significant PCs
-else %otherwise default is assigned
-    ncomps = 1:5;
-end
 
-if length(ncomps) > size(BROADNESS.TimeSeries_BrainNetworks,2) %if the requested components are more than the actual component..
-    ncomps = 1:size(BROADNESS.TimeSeries_BrainNetworks,2); %assigning by default the maximum number of existing components to be plotted
+%assigning number of components to be plotted
+if isfield(Options,'ncomps')
+    ncomps = Options.ncomps;
+elseif isPCA && isfield(BROADNESS,'Significant_BrainNetworks') && ~ischar(BROADNESS.Significant_BrainNetworks)
+    ncomps = BROADNESS.Significant_BrainNetworks;   % PCA + MCS
+else
+    % Fallback for ICA or PCA without MCS: first up to 5 components
+    ncomps = 1:min(5, size(ActPat,2));
 end
+if length(ncomps) > size(TimeSeries,1)
+    ncomps = 1:size(TimeSeries,1);
+end
+% if isfield(Options,'ncomps') %if components indices to be plotted are provided
+%     ncomps = Options.ncomps; %extracting them
+% elseif ~ischar(BROADNESS.Significant_BrainNetworks) %otherwise if MCS was previously computed
+%     ncomps = BROADNESS.Significant_BrainNetworks; %extracting indices of significant PCs
+% else %otherwise default is assigned
+%     ncomps = 1:5;
+% end
+
+
+
 
 % Checking if colors are provided for PCs and experimental conditions, otherwise assigning default
 if isfield(Options,'color_PCs') %PCs
@@ -204,7 +228,7 @@ if Options.WhichPlots(1) == 1
     % Plotting each experimental condition with consistent color scaling
     for condi = 1:size(data, 3) % Over experimental condition (or whatever the user placed in the 3rd dimension of the original data)
         figure
-        imagesc(time, 1:3559, data(:,:,condi));
+        imagesc(time, 1:size(data,1), data(:,:,condi));
         set(gcf, 'Color', 'w');
         colorbar;
         caxis(cLim);  % Applying symmetric color scale
@@ -218,33 +242,38 @@ end
 
 if Options.WhichPlots(2) == 1
     
-    disp('Generating variance explained plot...');
-    
-    figure
-    % Plotting actual data with line + marker (e.g. star marker)
-    plot(BROADNESS.Variance_BrainNetworks(1:ncomps_var), ...
-        '-*', ...                         % line + star marker
-        'DisplayName', 'Data', ...
-        'LineWidth', 1.5, ...
-        'MarkerSize', 6);
-    hold on
-    
-    % If MCS permutations available, plotting them too
-    if ~ischar(BROADNESS.Significant_BrainNetworks)
-        plot(BROADNESS.VariancePermutations(1:ncomps_var), ...
-            '-o', ...                     % line + circle marker
-            'DisplayName', 'Random', ...
+    if ~isPCA
+        warning('Variance field not found (likely because you provided ICA results).. Skipping variance plot');
+    else
+        
+        disp('Generating variance explained plot...');
+        
+        figure
+        % Plotting actual data with line + marker (e.g. star marker)
+        plot(BROADNESS.Variance_BrainNetworks(1:ncomps_var), ...
+            '-*', ...                         % line + star marker
+            'DisplayName', 'Data', ...
             'LineWidth', 1.5, ...
-            'MarkerSize', 5);
+            'MarkerSize', 6);
+        hold on
+        
+        % If MCS permutations available, plotting them too
+        if ~ischar(BROADNESS.Significant_BrainNetworks)
+            plot(BROADNESS.VariancePermutations(1:ncomps_var), ...
+                '-o', ...                     % line + circle marker
+                'DisplayName', 'Random', ...
+                'LineWidth', 1.5, ...
+                'MarkerSize', 5);
+        end
+        
+        % Additional setting for the plot
+        grid minor
+        legend('show', 'Location', 'northeast')
+        set(gcf, 'Color', 'w')
+        title('Variance Explained by Principal Components', 'FontWeight', 'bold', 'FontSize', 14);
+        xlabel('Component #');
+        ylabel('% Variance Explained');
     end
-    
-    % Additional setting for the plot
-    grid minor
-    legend('show', 'Location', 'northeast')
-    set(gcf, 'Color', 'w')
-    title('Variance Explained by Principal Components', 'FontWeight', 'bold', 'FontSize', 14);
-    xlabel('Component #');
-    ylabel('% Variance Explained');
 
 end
 
@@ -255,17 +284,33 @@ if Options.WhichPlots(3) == 1
     
     disp('Generating time series plots for brain networks...');
     
+    if ~isPCA
+        TimeSeries = permute(TimeSeries,[2 1 3]);
+    end
+    
     for compi = 1:length(ncomps) %over selected PCs
         figure
         for condi = 1:size(data,3) %over experimental conditions
-            plot(time(1:size(BROADNESS.ActivationPatterns_BrainNetworks,2)),BROADNESS.TimeSeries_BrainNetworks(:,ncomps(compi),condi),'Color',col_cond(condi,:),'LineWidth',2,'DisplayName',[Labels{condi}])
+            plot(time(1:TimeLimit),TimeSeries(:,ncomps(compi),condi),'Color',col_cond(condi,:),'LineWidth',2,'DisplayName',[Labels{condi}])
             hold on
         end
         xlim([time(1) time(end)])
         set(gcf,'color','w')
         legend('show')
         grid minor
-        title(['Time Series - Brain Networks # ' num2str(ncomps(compi)) ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(ncomps(compi)))], 'FontWeight', 'bold', 'FontSize', 14);
+        
+        
+        if isPCA
+            title(['Time Series - Brain Networks # ' num2str(ncomps(compi)) ...
+                ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(ncomps(compi)))], ...
+                'FontWeight','bold','FontSize',14);
+        else
+            title(['Time Series - Brain Networks # ' num2str(ncomps(compi))], ...
+                'FontWeight','bold','FontSize',14);
+        end
+        %         title(['Time Series - Brain Networks # ' num2str(ncomps(compi)) ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(ncomps(compi)))], 'FontWeight', 'bold', 'FontSize', 14);
+        
+        
         xlabel('Time (s)'); ylabel('Component Amplitude');
     end
 end
@@ -303,12 +348,12 @@ if Options.WhichPlots(4) == 1
         
         % Plotting in 3D
         for voxi = 1:skipper:length(pat2plot)
-            plot3( mni2plot(voxi,1), mni2plot(voxi,2), mni2plot(voxi,3), '.', 'Color', col_comp(ncomps(compi),:), 'MarkerSize', scale_size * pat2plot(voxi) );
+            plot3( mni2plot(voxi,1), mni2plot(voxi,2), mni2plot(voxi,3), '.', 'Color', col_comp(compi,:), 'MarkerSize', scale_size * pat2plot(voxi) );
             hold on
         end
         
         % Using NaN to avoid plotting actual points, just storing color info
-        legend_handles(compi) = plot3(nan, nan, nan, '.', 'Color', col_comp(ncomps(compi),:), 'MarkerSize', 12);    
+        legend_handles(compi) = plot3(nan, nan, nan, '.', 'Color', col_comp(compi,:), 'MarkerSize', 12);    
     end
    
     % Adjusting legend properties
