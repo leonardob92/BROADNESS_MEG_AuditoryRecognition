@@ -23,6 +23,7 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %   - Determines the optimal number of clusters using silhouette scores
 %   - Saves cluster information, centroids, and NIFTI images (if path provided)
 %   - Optionally generates 2D/3D scatterplots of voxels colored by cluster
+%   - Optionally generates 3D plots in a brain template of the different clusters 
 %
 % ------------------------------------------------------------------------
 %  INPUT ARGUMENTS:
@@ -515,3 +516,4 @@ function opts = parse_name_value_pairs(opts, varargin)
 end
 
 end
+
