@@ -38,6 +38,7 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %      - 'thresh'                          : Threshold for including voxel activations (default: mean + std)
 %      - 'scatterplots'                    : Set to 'all' to plot cluster results for all k
 %      - 'outpath'                         : If provided, saves NIFTI maps of clusters (default: [])
+%      - 'mni_coords'                      : MNI coordinates (Nvoxels x 3) for 3D plotting in brain template 
 %
 % ------------------------------------------------------------------------
 %  OUTPUT:
@@ -73,7 +74,7 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %  Center for Music in the Brain, Aarhus University
 %  Centre for Eudaimonia and Human Flourishing, Linacre College, University of Oxford
 %  Department of Physics, University of Bologna
-%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 08/08/2025
+%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 23/08/2025
 %
 % ========================================================================
 %
@@ -99,7 +100,8 @@ params = struct( ...
     'evalclusters',10, ...      % repetitions for clustering analysis to identify ideal clustering solution
     'thresh', [], ...           % per-PC abs(weight) threshold; default mean+std
     'scatterplots', [], ...     % [] (only optimal k), or 'all'
-    'outpath', [] ...           % folder to save NIFTI masks (optional)
+    'outpath', [], ...           % folder to save NIFTI masks (optional)
+    'mni_coords', [] ...        % MNI coordinates for 3D plotting in brain template
 );
 
 % Parse name-value pairs
@@ -112,6 +114,7 @@ plotMode                 = params.scatterplots;
 activationThresh         = params.thresh;
 savePath                 = params.outpath;
 numSilhouetteRepeats     = params.evalclusters;
+mni_coords               = params.mni_coords;
 
 % Validate required fields
 if isfield(BROADNESS, 'OriginalData')
@@ -393,7 +396,7 @@ else
     end
 end
 
-%% ------------------------- Save NIFTI masks (opt) -----------------------
+%% ------------------------- Save NIFTI images -----------------------
 
 if ~isempty(savePath)
     disp('Saving NIFTI images only for the optimal number of clusters');
@@ -426,6 +429,74 @@ if ~isempty(savePath)
     end
 end
 
+%% ---------------- 3D brain per cluster (cluster membership only) --------
+
+% Requires: 'mni_coords' as [Nvox x 3], same row order as data
+if isempty(mni_coords)
+    warning('Skipping 3D brain plots: provide ''mni_coords'' as [Nvox x 3].');
+else
+    MNIcoordsAll = mni_coords;
+    if size(MNIcoordsAll,1) ~= nVoxels
+        warning('Skipping 3D brain plots: mni_coords size mismatch (got %d rows, expected %d).', ...
+                size(MNIcoordsAll,1), nVoxels);
+    else
+        disp('Generating 3D cluster maps (one brain per cluster, membership only)...');
+
+        skipper       = 1;                % downsampling step
+        scale_size    = 6;                % dot size (try 4–8 for visibility)
+        templateFigFn = 'BrainTemplate_GT.fig';
+
+        % actual cluster labels present
+        labels   = clustersForOptimalK(:);
+        uniqLabs = unique(labels(:)');    % e.g. could be [0 1 2] or [2 3 4]
+        nLabs    = numel(uniqLabs);
+        cmap     = jet(nLabs) * 0.9;      % one color per label
+
+        for li = 1:nLabs
+            clLab   = uniqLabs(li);
+            voxMask = (labels == clLab);
+
+            if ~any(voxMask)
+                warning('Cluster label %g: no voxels to plot.', clLab);
+                continue;
+            end
+
+            coords = MNIcoordsAll(voxMask, :);
+            coords = coords(1:skipper:end, :);
+
+            % open template brain or new figure
+            if exist(templateFigFn,'file')
+                fig = openfig(templateFigFn, 'new', 'visible');
+                ax  = findobj(fig, 'Type','axes');
+                if isempty(ax), ax = axes('Parent', fig); end
+                ax = ax(1);
+                set(fig,'Renderer','opengl');
+                hold(ax,'on');
+
+                % make template brain transparent if it's a patch object
+%                 brainPatch = findobj(ax, 'Type','patch');
+%                 if ~isempty(brainPatch)
+%                     set(brainPatch, 'FaceAlpha', 0.15, 'EdgeColor','none');
+%                 end
+            else
+                fig = figure('Color','w');
+                ax  = axes('Parent', fig);
+                hold(ax,'on');
+            end
+
+            % plot voxels for this cluster
+            plot3(ax, coords(:,1), coords(:,2), coords(:,3), '.', ...
+                  'Color', cmap(li,:), 'MarkerSize', scale_size);
+
+            % styling / view
+            axis(ax,'tight'); axis(ax,'equal'); axis(ax,'vis3d'); axis(ax,'off');
+            rotate3d(ax,'on'); camlight(ax,'headlight'); lighting(ax,'gouraud');
+            title(ax, sprintf('3D Cluster Map — OptimalK=%d — Cluster %g (n=%d voxels)', ...
+                  optimalK, clLab, nnz(voxMask)), ...
+                  'FontSize', 14, 'FontWeight', 'bold');
+        end
+    end
+end
 
 %% ------------------------ Helper: parse name/values ---------------------
 
