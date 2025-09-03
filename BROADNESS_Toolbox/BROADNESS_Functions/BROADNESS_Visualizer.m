@@ -175,7 +175,8 @@ elseif isPCA && isfield(BROADNESS,'Significant_BrainNetworks') && ~ischar(BROADN
     ncomps = BROADNESS.Significant_BrainNetworks;   % PCA + MCS
 else
     % Fallback for ICA or PCA without MCS: first up to 5 components
-    ncomps = 1:min(5, size(ActPat,2));
+    %     ncomps = 1:min(5, size(ActPat,2));
+    ncomps = 1:size(ActPat,2);
 end
 if length(ncomps) > size(TimeSeries,1)
     ncomps = 1:size(TimeSeries,1);
