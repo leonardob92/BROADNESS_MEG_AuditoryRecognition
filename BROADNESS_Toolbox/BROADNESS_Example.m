@@ -15,11 +15,8 @@
 %  (Broadband Brain Network Estimation via Source Separation).
 %
 %  The example dataset consists of data averaged across participants recorded
-%  during an auditory (musical) memory recognition task.
-%  The dataset in this format is currently not available online, while its previous
-%  version (consisting of preprocessed epoched data) is avaiable here:
-%  https://zenodo.org/records/10715160
-%  The dataset in this format will be made publicly available soon.
+%  during an auditory (musical) memory recognition task and is available at the following link:
+%  10.5281/zenodo.17048136
 %
 %
 %  PLEASE, NOTE:
