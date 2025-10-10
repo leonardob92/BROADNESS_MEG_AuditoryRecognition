@@ -43,6 +43,7 @@ The fitness of the code for any particular purpose.
 Users are solely responsible for verifying the correctness and suitability of the toolbox for their own applications and for complying with all relevant ethical and legal regulations governing their work.
 
 If you use this software in academic work, please cite the associated publications or this repository appropriately.
+
 Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno, F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science, e07878. 
 BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
 https://doi.org/10.1002/advs.202507878
