@@ -1,7 +1,8 @@
 BROADband brain Network Estimation via Source Separation (BROAD-NESS)
 
-Matlab leading scripts for the paper entitled: "BROADband brain Network Estimation via Source Separation (BROAD-NESS)", BioRxiv (2024). L. Bonetti, G. Fernández Rubio, M.H. Andersen, C. Malvaso, F. Carlomagno, C. Testa, P. Vuust, M.L. Kringelbach, M. Rosso.
-https://www.biorxiv.org/content/10.1101/2024.10.31.621257v1.abstract
+Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno, F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science, e07878. 
+BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+https://doi.org/10.1002/advs.202507878
 
 Additional relevant codes and functions are available here: https://github.com/leonardob92/LBPD-1.0.git
 
@@ -22,28 +23,3 @@ Please, note 2:
 
 The conceptualization and code implementation of the Toolbox were carried out in collaboration with Dr. Mattia Rosso (https://github.com/mattiaRosso92).
 Corresponding authors: Leonardo Bonetti - leonardo.bonetti@clin.au.dk; leonardo.bonetti@psych.ox.ac.uk; Mattia Rosso - mattia.rosso@clin.au.dk
-
-
-
-Disclaimer
-
-This software is provided for research and educational purposes only.
-The authors and contributors make no representations or warranties of any kind, express or implied, about the completeness, accuracy, reliability, suitability, or availability of this software or the information contained within it. Any use of this software is at your own risk.
-
-By using this code, you agree that the authors, their institutions, and collaborators shall not be held liable for any direct, indirect, incidental, consequential, or special damages, including (but not limited to) loss of data, profits, or any other losses arising from the use or inability to use this software, even if advised of the possibility of such damages.
-
-No guarantees are made regarding:
-
-The performance or accuracy of the algorithms or analyses,
-
-The compatibility with specific hardware or software configurations,
-
-The fitness of the code for any particular purpose.
-
-Users are solely responsible for verifying the correctness and suitability of the toolbox for their own applications and for complying with all relevant ethical and legal regulations governing their work.
-
-If you use this software in academic work, please cite the associated publications or this repository appropriately.
-
-Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno, F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science, e07878. 
-BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
-https://doi.org/10.1002/advs.202507878
