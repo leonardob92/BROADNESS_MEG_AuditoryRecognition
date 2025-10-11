@@ -7,9 +7,9 @@ function [BROADNESS_ICA] = BROADNESS_AlternativeNetworkEstimation_ICA(data, time
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
-%  F., Testa, C., Vuust, P., Kringelbach, M.L., & Rosso, M. (2024).
-%  BROADband brain Network Estimation via Source Separation (BROAD-NESS). bioRxiv, 2024-10.
-%  https://doi.org/10.1101/2024.10.31.621257
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science. 
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
 %
 % =========================================================================
 %
@@ -27,8 +27,21 @@ function [BROADNESS_ICA] = BROADNESS_AlternativeNetworkEstimation_ICA(data, time
 %
 % -------------------------------------------------------------------------
 %  INPUTS:
-%    data  : 2D (voxels × time) or 3D (voxels × time × conditions)
-%    time  : time vector (seconds), length must equal size(data,2)
+
+%    data   :  DATA MATRIX, either:
+%                   - 2D: sources × time-points  (or channels × time-points)
+%                   - 3D: sources × time-points × conditions
+%                   - 4D: sources × time-points × conditions × participants
+%                   Note on PCA computation:
+%                   - If 3D: average across conditions   → reduces to 2D
+%                   - If 4D: average across participants and then across conditions → reduces to 2D
+%                   General note:
+%                   Depending on experimental needs, BROADNESS can be computed:
+%                   - after averaging across conditions/participants, OR
+%                   - independently for each condition and participant.
+%                   This is a choice that the user should make, after thinking carefully.
+%
+%    time   : time vector (seconds), length must equal size(data,2)
 %
 %  Name-value pairs:
 %    'icacomps'     : [] (default). If provided, use this integer #ICs.
@@ -81,31 +94,36 @@ total_varexp = opts.total_varexp;
 icacomps     = opts.icacomps;
 
 if ~isnumeric(total_varexp) || ~isscalar(total_varexp) || total_varexp <= 0 || total_varexp > 100
-    error('"total_varexp" must be a numeric scalar between 0 and 100.');
+    error('"total_varexp" must be a numeric scalar between 0 and 100');
 end
 
 total_varexp = total_varexp/100;
 
 sz = size(data);
-if ~(ndims(data) == 2 || ndims(data) == 3)
-    error('Data must be 2D (voxels × time) or 3D (voxels × time × conditions).');
+if ~(ndims(data) == 2 || ndims(data) == 3 || ndims(data) == 4)
+    error('Data must be 2D (voxels × time) or 3D (voxels × time × conditions) or 4D (voxels × time × conditions x participants)');
 end
 if size(data,2) ~= numel(time)
-    error('size(data,2) must match length(time).');
+    error('size(data,2) must match length(time)');
 end
 
 %% ------------------------- Preprocess data ------------------------------
+
 % Average across conditions if 3D
-if ndims(data) == 3
-    data_av = mean(data, 3);
-else
-    data_av = data;
+if ndims(data) == 4
+    data_temp = data; % store the data
+    data = mean(data, 4); % average across participants
+    data = mean(data, 3); % average across conditions
+elseif ndims(data) == 3
+    data_temp = data; % same data stored with a different name for avoiding issues later (barbaric yet effective solution)
+    data = mean(data, 3); % average across conditions
 end
 
 % Demean across time for each voxel
-data_demeaned = data_av - mean(data_av,2);
+data_demeaned = data - mean(data,2);
 
 %% -------- Determine number of ICA components (m) ------------------------
+
 if ~isempty(icacomps)
     % User-specified number of components
     if ~isscalar(icacomps) || ~isnumeric(icacomps) || icacomps <= 0 || fix(icacomps) ~= icacomps
@@ -127,34 +145,48 @@ else
 end
 
 %% --------------------------- Run ICA (JADE) ------------------------------
+
 iVecs = jadeR(data_demeaned, m); % IC × voxel unmixing matrix
 
 %% -------- Compute IC time series for each condition ----------------------
-if ndims(data) == 2
+
+if ndims(data_temp) == 2 % no single participants nor conditions
     conds = 1;
-else
-    conds = size(data,3);
+else % several conditions
+    conds = size(data_temp,3);
 end
-icScores = zeros(m, size(data,2), conds);
-for ii = 1:conds
-    icScores(:,:,ii) = iVecs * data(:,:,ii);
+if ndims(data_temp) == 4 %single participants
+    icScores = zeros(m, size(data_temp,2), conds, size(data_temp,4));
+    for parti = 1:size(data_temp,4) %over participants
+        for ii = 1:conds %over conditions
+            icScores(:,:,ii,parti) = iVecs * data_temp(:,:,ii,parti);
+        end
+    end
+else % provided several conditions but average across participants
+    icScores = zeros(m, size(data_temp,2), conds);
+    for ii = 1:conds
+        icScores(:,:,ii) = iVecs * data_temp(:,:,ii);
+    end
 end
 
 %% -------- Compute spatial activation patterns ----------------------------
-C = cov(data_av'); % voxel × voxel covariance (auto-centers)
+
+C = cov(data'); % voxel × voxel covariance (auto-centers)
 ActivationPatterns = zeros(size(data,1), m);
 for c = 1:m
     ActivationPatterns(:,c) = (iVecs(c,:) * C)';
 end
 
 %% --------------------------- Pack output ---------------------------------
+
 BROADNESS_ICA.TimeSeries_BrainNetworks         = icScores;
 BROADNESS_ICA.ActivationPatterns_BrainNetworks = ActivationPatterns;
 BROADNESS_ICA.numICAcomps                      = m;
 BROADNESS_ICA.Time                             = time;
-BROADNESS_ICA.OriginalData                     = data;
+BROADNESS_ICA.OriginalData                     = data_temp;
 
 %% ---------------- Helper: parse name-value pairs -------------------------
+
 function opts = parse_name_value_pairs(opts, varargin)
     if mod(length(varargin), 2) ~= 0
         error('Arguments must be given as name-value pairs.');

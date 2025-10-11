@@ -1,11 +1,19 @@
 function BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
-
-% ========================================================================
+%%
+% =========================================================================
 %  BROADBAND BRAIN NETWORK ESTIMATION VIA SOURCE SEPARATION (BROADNESS) TOOLBOX
 %  TIME SERIES PLOTTING FUNCTION
-% ========================================================================
+% =========================================================================
 %
-
+%  Please cite the first BROADNESS paper:
+%  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science. 
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
+%
+% =========================================================================
+%
+%
 %  DESCRIPTION:
 %  ------------
 %  Plots the average time series of brain networks (or other signals) across

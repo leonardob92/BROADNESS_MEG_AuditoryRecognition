@@ -7,9 +7,9 @@ function BROADNESS_Visualizer(BROADNESS, Options)
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
-%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2024).
-%  BROADband brain Network Estimation via Source Separation (BROAD-NESS). bioRxiv, 2024-10.
-%  https://doi.org/10.1101/2024.10.31.621257
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science.
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
 %
 % ========================================================================
 %
@@ -45,7 +45,10 @@ function BROADNESS_Visualizer(BROADNESS, Options)
 %      - BROADNESS.Significant_BrainNetworks            : Significant brain networks according to Monte-Carlo simulations (MCS).   
 %      - BROADNESS.ActivationPatterns_BrainNetworks     : Spatial activation patterns used to generate NIFTI files and
 %                                                         the 3D brain plot.
-%      - BROADNESS.TimeSeries_BrainNetworks             : Time series of the brain networks (independently for each conditions). 
+%      - BROADNESS.TimeSeries_BrainNetworks             : Time series of the brain networks (independently for each conditions and participants
+%                                                         if original data was provided for each condition and participant).
+%                                                         Note that if data was provided for each participant,the time series plots show
+%                                                         mean across participants and standard errors.
 %      - BROADNESS.VariancePermutations                 : Variance explained by PCA on permuted data; only if MCS was computed.
 %      - BROADNESS.Time                                 : Vector with time in seconds. 
 %      - BROADNESS.OriginalData                         : Original data matrix. 
@@ -127,16 +130,18 @@ time = BROADNESS.Time;
 ActPat = BROADNESS.ActivationPatterns_BrainNetworks;
 TimeSeries = BROADNESS.TimeSeries_BrainNetworks;
 
+% Compute mean and standard deviation if data is provided for single participants
+sz = size(data);
+non_singleton_dims = sum(sz > 1); %trick to get if the matrix is a vector
+if non_singleton_dims == 4 %data provided for single participants
+    TimeSeries_stde = std(TimeSeries,[],4) ./ sqrt(size(TimeSeries,4));    
+    TimeSeries = mean(TimeSeries,4);
+end
+
 % Detect whether this BROADNESS struct is from PCA (has variance fields)
 isPCA = isfield(BROADNESS,'Variance_BrainNetworks') && ...
     isnumeric(BROADNESS.Variance_BrainNetworks) && ...
     ~isempty(BROADNESS.Variance_BrainNetworks);
-
-if isPCA
-    TimeLimit = size(BROADNESS.ActivationPatterns_BrainNetworks,2);
-else
-    TimeLimit = length(time);
-end
 
 if ~isfield(Options,'WhichPlots') % if request of which plots should be prepared is not provided
     Options.WhichPlots = ones(1,5);  % Assigning default
@@ -175,8 +180,8 @@ elseif isPCA && isfield(BROADNESS,'Significant_BrainNetworks') && ~ischar(BROADN
     ncomps = BROADNESS.Significant_BrainNetworks;   % PCA + MCS
 else
     % Fallback for ICA or PCA without MCS: first up to 5 components
-    %     ncomps = 1:min(5, size(ActPat,2));
-    ncomps = 1:size(ActPat,2);
+%     ncomps = 1:min(5, size(ActPat,2));
+    ncomps = 1:5;%size(ActPat,2);
 end
 if length(ncomps) > size(TimeSeries,1)
     ncomps = 1:size(TimeSeries,1);
@@ -219,6 +224,7 @@ if Options.WhichPlots(1) == 1
     % Plotting data using imagesc (sort of raster plots)
     disp('Generating dynamic brain activity plots...');
 
+    data = mean(data,4); % Average across participants (if single-participant data was provided)
     % Computing global min and max
     MAX = max(data(:));
     MIN = min(data(:));
@@ -287,20 +293,29 @@ if Options.WhichPlots(3) == 1
     
     if ~isPCA
         TimeSeries = permute(TimeSeries,[2 1 3]);
+        if non_singleton_dims == 4 % data provided for single participants
+            TimeSeries_stde = permute(TimeSeries_stde,[2 1 3]);
+        end
     end
     
     for compi = 1:length(ncomps) %over selected PCs
-        figure
-        for condi = 1:size(data,3) %over experimental conditions
-            plot(time(1:TimeLimit),TimeSeries(:,ncomps(compi),condi),'Color',col_cond(condi,:),'LineWidth',2,'DisplayName',[Labels{condi}])
-            hold on
-        end
-        xlim([time(1) time(end)])
-        set(gcf,'color','w')
-        legend('show')
+
+        figure; hold on; set(gcf,'color','w');
         grid minor
-        
-        
+        t = time; t = t(:);
+        for condi = 1:size(data,3)
+            mu = TimeSeries(:,ncomps(compi),condi);
+            if non_singleton_dims == 4 % data provided for single participants
+                se = TimeSeries_stde(:,ncomps(compi),condi);
+                mu = mu(:); se = se(:);
+                fill([t; flipud(t)], [mu+se; flipud(mu-se)], col_cond(condi,:), 'FaceAlpha',0.25, 'EdgeColor','none', 'HandleVisibility','off');
+            end
+            plot(t, mu, 'Color', col_cond(condi,:), 'LineWidth',2, 'DisplayName', Labels{condi});
+        end
+        xlim([t(1) t(end)]);
+        legend('show')
+        box on
+
         if isPCA
             title(['Time Series - Brain Networks # ' num2str(ncomps(compi)) ...
                 ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(ncomps(compi)))], ...
@@ -310,7 +325,6 @@ if Options.WhichPlots(3) == 1
                 'FontWeight','bold','FontSize',14);
         end
         %         title(['Time Series - Brain Networks # ' num2str(ncomps(compi)) ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(ncomps(compi)))], 'FontWeight', 'bold', 'FontSize', 14);
-        
         
         xlabel('Time (s)'); ylabel('Component Amplitude');
     end
@@ -336,7 +350,7 @@ if Options.WhichPlots(4) == 1
     for compi = 1:length(ncomps) %over selected PCs
         % Assigning temporary activation pattern to plot
         pat2plot = ActPat(:,ncomps(compi));
-        pat2plot( pat2plot < (mean(pat2plot)+thresh_nsdt*std(pat2plot)) ) = nan;  % apply threshold
+        pat2plot( pat2plot < mean(pat2plot)+thresh_nsdt*std(pat2plot) ) = nan;  % apply threshold
         pat2plot(isnan(Options.MNI_coords(:,1))) = nan;
         
         % Assigning temporary activation pattern to plot
@@ -438,7 +452,11 @@ if Options.WhichPlots(5) == 1
         disp(['Saving NIFTI images - PC ' num2str(ncomps(compi))])
         
         % Saving the NIFTI file
-        save_nii(nii, [nifti_path '/ActivationPattern_BrainNetwork_#' num2str(ncomps(compi)) '.nii']);
+        if isPCA
+            save_nii(nii, [nifti_path '/PCA_ActivationPattern_BrainNetwork_#' num2str(ncomps(compi)) '.nii']);
+        else
+            save_nii(nii, [nifti_path '/ICA_ActivationPattern_BrainNetwork_#' num2str(ncomps(compi)) '.nii']);
+        end
     end
 end
 

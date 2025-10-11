@@ -7,9 +7,9 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
-%  F., Testa, C., Vuust, P., Kringelbach, M.L., & Rosso, M. (2024).
-%  BROADband brain Network Estimation via Source Separation (BROAD-NESS). bioRxiv, 2024-10.
-%  https://doi.org/10.1101/2024.10.31.621257
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science. 
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
 %
 % ========================================================================
 %
@@ -124,9 +124,9 @@ else
     error('Invalid input: BROADNESS.OriginalData is required.');
 end
 
-if ndims(voxelTimeData) ~= 3 && ~ismatrix(voxelTimeData)
-    error('"OriginalData" must be a 2D or 3D matrix: (voxels × time × [conditions]).');
-end
+% if ndims(voxelTimeData) ~= 3 && ~ismatrix(voxelTimeData)
+%     error('"OriginalData" must be a 2D or 3D matrix: (voxels × time × [conditions]).');
+% end
 
 nVoxels = size(voxelTimeData, 1);
 
@@ -158,6 +158,7 @@ end
 disp('Computing Spatial Activation Patterns');
 
 % Average across conditions (if 3D), to compute covariance on main effect
+voxelTimeData = mean(voxelTimeData,4); %average across participants (if needed)
 meanAcrossConditions = squeeze(mean(voxelTimeData(:,:,:), 3));  % voxels × time
 
 % Covariance across voxels (rows are variables => transpose)
@@ -193,7 +194,7 @@ end
 %% --------------------------- K-means clustering -------------------------
 
 % Z-score across voxels so PCs are comparable in scale
-zscoreActivations = zscore(thresholdedActivations);
+zscoreActivations = (thresholdedActivations - mean(thresholdedActivations)) ./ std(thresholdedActivations);
 
 % Prepare storage across the tested k values
 clusterAssignmentsAll = zeros(nVoxels + 1, length(clusterRange)); % first row stores k itself
@@ -516,4 +517,3 @@ function opts = parse_name_value_pairs(opts, varargin)
 end
 
 end
-

@@ -7,9 +7,9 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
-%  F., Testa, C., Vuust, P., Kringelbach, M.L., & Rosso, M. (2024).
-%  BROADband brain Network Estimation via Source Separation (BROAD-NESS). bioRxiv, 2024-10.
-%  https://doi.org/10.1101/2024.10.31.621257
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science. 
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
 %
 % ========================================================================
 %
@@ -41,7 +41,7 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %  INPUT ARGUMENTS:
 % ------------------------------------------------------------------------
 %  - BROADNESS                          : Structure from BROADNESS_NetworkEstimation
-%      - .TimeSeries_BrainNetworks      : 2D or 3D matrix (time × components × [conditions])
+%      - .TimeSeries_BrainNetworks      : 2D, 3D or 4D matrix (time × components × [conditions] x [participants])
 %      - .Time                          : Vector of time points (seconds)
 %
 %  - Optional arguments (name-value pairs):
@@ -55,9 +55,12 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %  OUTPUT:
 % ------------------------------------------------------------------------
 %  - RQA_BROADNESS                              : Structure with RQA results
-%      - .RQA_matrices.RecurrencePlot_NOthresh  : Cell array of recurrence plots (distance matrices)
-%      - .RQA_matrices.RecurrencePlot_thresh    : Cell array of thresholded recurrence plots
-%      - .RQA_metrics                           : Table of 8 RQA measures per experimental condition
+%      - .RecurrencePlots.DistMat               : Cell array of distance matrices
+%      - .RecurrencePlots.RecurPlot             : Cell array of recurrence plots (i.e., thresholded distance matrices)
+%      - .RQA_metrics                           : Table of 8 RQA measures
+%
+%      Please, note that this output will be generated for each experimental condition and participant,
+%      if the data was originally provided in such format. 
 %
 % ------------------------------------------------------------------------
 %
@@ -70,7 +73,7 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %  Center for Music in the Brain, Aarhus University
 %  Centre for Eudaimonia and Human Flourishing, Linacre College, University of Oxford
 %  Department of Physics, University of Bologna
-%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 08/08/2025
+%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 11/10/2025
 %
 % ========================================================================
 %
@@ -94,7 +97,7 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 disp('Checking inputs')
 
 % Defaults
-opts = struct('principalcomps', 1:10, 'timeinterval', [], 'threshold', 0.1, 'video', 'on','figure','on');
+opts = struct('principalcomps', 1:2, 'timeinterval', [], 'threshold', 0.1, 'video', 'off','figure','off');
 opts = parse_name_value_pairs(opts, varargin{:});
 
 % Assign to readable internal names
@@ -115,10 +118,10 @@ if isfield(BROADNESS, 'Time')
 else
     error('Invalid input structure: field "Time" is required.');
 end
-if ~(ismatrix(TimeSeries) || ndims(TimeSeries) == 3)
-    error(['"TimeSeries_BrainNetworks" must be 2D or 3D (time × components × [conditions]) ', ...
-           'or (components × time × [conditions]).']);
-end
+% if ~(ismatrix(TimeSeries) || ndims(TimeSeries) == 3)
+%     error(['"TimeSeries_BrainNetworks" must be 2D or 3D (time × components × [conditions]) ', ...
+%            'or (components × time × [conditions]).']);
+% end
 
 % --- Validate optional args ---
 if ~(isnumeric(PCs) && isvector(PCs))
@@ -165,31 +168,55 @@ if isPCA && length(reduced_time_idx) > size(TimeSeries,1)
 end
     
 if ~isPCA %reshaping matrix of time series if ICA
-    TimeSeries = permute(TimeSeries,[2 1 3]);
+    TimeSeries = permute(TimeSeries,[2 1 3 4]); % 4th dimension if the time series were computed for each participant; this works even if the time series matrix is only 3D
 end
 
 %% ------------------- Compute phase space coordinates --------------------
+% Now supports 4th dim = participants.
+% Video (and downstream code using `phase_space`) uses the participant-AVERAGED TimeSeries.
 
-% initializating the cell array that will contain the coordinates in the
-% phase space for each condition
-phase_space = cell(size(TimeSeries,3),1);
-for cond = 1:size(TimeSeries,3) % over conditions
+% If TimeSeries is 3D, promote to 4D with singleton participants
+if ndims(TimeSeries) == 3
+    TimeSeries = reshape(TimeSeries, size(TimeSeries,1), size(TimeSeries,2), size(TimeSeries,3), 1);
+end
 
-    % initializating the matrix that will contain the coordinates in the phase space
-    phase_space_temp = zeros(length(reduced_time_idx),length(PCs));
+nT   = size(TimeSeries,1);
+nPC  = size(TimeSeries,2);
+nCond = size(TimeSeries,3);
+nPart = size(TimeSeries,4);
 
-        for t = 1:length(reduced_time_idx) % over time points
-            for cc = 1:length(PCs) % over components
-                phase_space_temp(t,cc) = TimeSeries(reduced_time_idx(t),PCs(cc),cond);
+% 1) Per-participant phase spaces (so nothing is lost if you need them later)
+phase_space_participants = cell(nCond, nPart);
+for part = 1:nPart            % over participants
+    for cond = 1:nCond        % over conditions
+        % initialize the matrix that will contain the coordinates in the phase space
+        phase_space_temp = zeros(length(reduced_time_idx), length(PCs));
+        for t = 1:length(reduced_time_idx)   % over time points
+            for cc = 1:length(PCs)           % over components
+                phase_space_temp(t,cc) = TimeSeries(reduced_time_idx(t), PCs(cc), cond, part);
             end
         end
-    phase_space{cond} = phase_space_temp;
-%     clear phase_space_temp
-        
+        phase_space_participants{cond, part} = phase_space_temp;
+    end
 end
-    
-%% ---------------------- Display phase space video -----------------------
 
+% 2) Participant-AVERAGED TimeSeries (required for video display per your note)
+TimeSeries_avg = mean(TimeSeries, 4); % average across participants -> 3D: [time x PC x cond]
+
+% 3) Averaged phase_space (keep original variable name & shape so downstream code is unchanged)
+phase_space = cell(nCond,1);
+for cond = 1:nCond % over conditions
+    phase_space_temp = zeros(length(reduced_time_idx), length(PCs));
+    for t = 1:length(reduced_time_idx)      % over time points
+        for cc = 1:length(PCs)              % over components
+            phase_space_temp(t,cc) = TimeSeries_avg(reduced_time_idx(t), PCs(cc), cond);
+        end
+    end
+    phase_space{cond} = phase_space_temp;
+end
+
+%% ---------------------- Display phase space video -----------------------
+% (UNCHANGED) — will now use the averaged `phase_space`
 if strcmp(video, 'on')
     if length(PCs) == 2
         targetTicks = 10; % how many ticks you want on the colorbar
@@ -263,13 +290,13 @@ if strcmp(video, 'on')
 end
 
 %% ----------------------- Compute Recurrence Plot ------------------------
+% Computed from averaged `phase_space` so it matches the video
 
-% Initializing the cell array that will contain the recurrence plot for each condition 
-RP = cell(size(phase_space,1), 1);
+% Initializing the cell array that will contain the distance matrix for each condition 
+DM = cell(size(phase_space,1), 1);
 
 % Initializing the cell array that will contain the thresholded recurrence plot for each condition 
-RP_thresh = cell(size(phase_space,1), 1);
-
+RP = cell(size(phase_space,1), 1);
 
 for cc = 1:size(phase_space,1) %over conditions
    
@@ -283,113 +310,150 @@ for cc = 1:size(phase_space,1) %over conditions
         end
     end
    RP_thresh_temp(RP_temp<max(RP_temp(:))*eps) = 1; %recurrent values
-   RP{cc} = RP_temp;
-   RP_thresh{cc} =RP_thresh_temp;
+   DM{cc} = RP_temp;
+   RP{cc} = RP_thresh_temp;
 %    clear RP_temp
 %    clear RP_thresh_temp
-   
 end
     
 %% ------------------------- Recurrence plots -----------------------------
 
 if strcmp(figurel, 'on')
     % Plotting the NO THRESHOLDED recurrence plot for each condition
-    for cond = 1:size(RP,1) % over conditions
+    for cond = 1:size(DM,1) % over conditions
         figure;
-        imagesc(time(reduced_time_idx),time(reduced_time_idx), RP{cond}); xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
+        imagesc(time(reduced_time_idx), time(reduced_time_idx), DM{cond}); 
+        xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
         colorbar
         set(gcf,'Color','w')
-        % caxis([0.8 2.8])
+        % Flip colormap: recurrence = blue, non-recurrence = yellow
+        colormap(flipud(parula));  
         title(['Condition ' num2str(cond) ' no thresholding'])
+        axis square
     end
     
     % Plotting the THRESHOLDED recurrence plot for each condition
-    for cond = 1:size(RP_thresh,1) % over conditions
+    for cond = 1:size(RP,1) % over conditions
         figure;
-        imagesc(time(reduced_time_idx),time(reduced_time_idx), RP_thresh{cond}); xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
+        imagesc(time(reduced_time_idx), time(reduced_time_idx), RP{cond}); 
+        xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
         colorbar
         set(gcf,'Color','w')
-        title(['Condition ' num2str(cond) ' thresholding' num2str(eps*100) '%'])
+        title(['Condition ' num2str(cond) ' thresholding ' num2str(eps*100) '%'])
+        axis square
     end
 end
 
-%% --------------------------- Computing metrics --------------------------
+%% --------------------- PER-PARTICIPANT RP + METRICS ---------------------
 
-lmin = 2; % minimum consecutive elements on diagonal lines
+% New block: compute recurrence plots and RQA metrics for each participant,
+% using the per-participant phase spaces we already computed earlier.
 
-vmin = 2; % minimum consecutive elements on vertical lines
+% Containers
+RP_participants        = cell(nCond, nPart);  % RP per (cond, part)
+RP_thresh_participants = cell(nCond, nPart);  % thresholded RP per (cond, part)
+metrics_participants   = cell(nPart, 1);      % one metrics matrix [nCond x 8] per participant
+metrics_tbl_participants = cell(nPart, 1);    % one table per participant
 
-% Initializing the matrix that will contain all the metrics
-metrics = zeros(size(RP_thresh,1), 8);
-
-for cc = 1:size(RP_thresh,1) % over conditions
-    
-    disp(['Computing 8 metrics - condition ' num2str(cc)])
-    %%%%%%%%%%% RECURRENCE RATE (RR) %%%%%%%%%
-    %number of recurrence point divided by total number of points
-    metrics(cc,1) = sum(RP_thresh{cc}(:)) / numel(RP_thresh{cc});
-
-    %%%%%%%%%%% mean diagonal line (L) %%%%%%%%%%%%%%%%
-%     clear Ldiags
-    %Ldiags contains length of the diagonals found in the plot (showing that something is recurrent (with a time-lag)
-    [~ , Ldiags] = dl(RP_thresh{cc});
-    Ldiags(Ldiags<lmin) = [];
-    %Storing the mean of diagonals length
-    metrics(cc, 2) = mean(Ldiags);
-
-    %%%%%%%%%%% Determinism (DET) %%%%%%%%%%%%%%%
-    if isempty(Ldiags)
-        Ldiags = 0;
-        warning('No diagonal elements in the RP');
-    end
-
-    if sum(RP_thresh{cc}(:)) > 0
-        metrics(cc,3) = sum(Ldiags) / (sum(RP_thresh{cc}(:))); %all diagonal summed divided by total number of recurrences = proportion of elements arranged in diagonals compared to all elements
+for part = 1:nPart
+    sz = size(TimeSeries);
+    non_singleton_dims = sum(sz > 1); %trick to get if the matrix is a vector
+    if non_singleton_dims == 4
+        disp(['Computing recurrence plots and RQA metrics for each participant.. ' num2str(part) ' / ' num2str(nPart)])
     else
-        metrics(cc,3) = NaN;
-        warning('No recurrence points in the RP');
+        disp('Computing recurrence plots and RQA metrics..')
     end
-    %%%%%%%%%%%% Entropy (ENTR) %%%%%%%%%%%%%%%
-     %distribution of the number of occurrences of the diagonal of different lengths
-    histL = hist(Ldiags(:), 1:min(size(RP_thresh{cc})));
-    metrics(cc,4) = entropy(histL(:));
+    % --- RP per condition for this participant ---
+    for cc = 1:nCond
+        % Build RP for this (cond, participant)
+        PS = phase_space_participants{cc, part};
+        RP_temp_p        = zeros(size(PS,1));
+        RP_thresh_temp_p = zeros(size(PS,1));
+        for ii = 1:size(PS,1)        % over time-points
+            for jj = 1:size(PS,1)    % over time-points
+                RP_temp_p(ii,jj) = norm(PS(ii,:) - PS(jj,:));
+            end
+        end
+        RP_thresh_temp_p(RP_temp_p < max(RP_temp_p(:)) * eps) = 1;
 
-    %%%%%%%%%%%% Trapping time (TT) %%%%%%%%%%%%%
-%     clear TTverts
-    %TTverts contains legnth of the vertical lines in the plot (showing that the plot is trapped in a state)
-    [~, TTverts] = tt(RP_thresh{cc});
-    TTverts(TTverts < vmin) = [];
-    %Storing the mean vertical lines length
-    metrics(cc,5) = mean(TTverts);
-
-    %%%%%%%%%%%% Laminarity (LAM) %%%%%%%%%%%%%%%
-    if sum(TTverts)>0
-        %all vertical lines summed divided by total number of recurrences = proportion of elements arranged in vertical lines (being trapped in the same state) compared to all elements
-        metrics(cc,6) = sum(TTverts) / (sum(RP_thresh{cc}(:)));
-    else
-      metrics(cc,6) = NaN;
+        RP_participants{cc, part}        = RP_temp_p;
+        RP_thresh_participants{cc, part} = RP_thresh_temp_p;
+        % clear RP_temp_p RP_thresh_temp_p
     end
-     
-    %%%%%%%%%%% Maximal duration of laminar state, i.e, vertical line (Vmax) %%%%%%%%%%% 
-    
-    metrics(cc,7) = max(TTverts);
-    %%%%%%%%%%% Divergence, i.e. inverse of maximum diagonal length (DIV) %%%%%%%%%%%
-%     clear Lmax
-    Lmax = max(Ldiags(1:end-1));
-    metrics(cc,8) = 1 / Lmax;
-    
+
+    % --- RQA metrics for this participant (per condition) ---
+    lmin = 2;
+    vmin = 2;
+
+    metrics_p = zeros(nCond, 8);
+    for cc = 1:nCond
+        RPth = RP_thresh_participants{cc, part};
+
+        %%%%% RECURRENCE RATE (RR)
+        metrics_p(cc,1) = sum(RPth(:)) / numel(RPth);
+
+        %%%%% mean diagonal line (L) + collect diagonals
+        [~, Ldiags] = dl(RPth);
+        Ldiags(Ldiags < lmin) = [];
+        metrics_p(cc,2) = mean(Ldiags);
+
+        %%%%% Determinism (DET)
+        if isempty(Ldiags)
+            Ldiags = 0;
+            warning('No diagonal elements in the RP (participant %d, condition %d)', part, cc);
+        end
+        if sum(RPth(:)) > 0
+            metrics_p(cc,3) = sum(Ldiags) / sum(RPth(:));
+        else
+            metrics_p(cc,3) = NaN;
+            warning('No recurrence points in the RP (participant %d, condition %d)', part, cc);
+        end
+
+        %%%%% Entropy (ENTR)
+        histL = hist(Ldiags(:), 1:min(size(RPth)));
+        metrics_p(cc,4) = entropy(histL(:));
+
+        %%%%% Trapping time (TT) and Laminarity (LAM)
+        [~, TTverts] = tt(RPth);
+        TTverts(TTverts < vmin) = [];
+        metrics_p(cc,5) = mean(TTverts);
+        if sum(TTverts) > 0
+            metrics_p(cc,6) = sum(TTverts) / sum(RPth(:));
+        else
+            metrics_p(cc,6) = NaN;
+        end
+
+        %%%%% Vmax
+        if isempty(TTverts)
+            metrics_p(cc,7) = NaN;
+        else
+            metrics_p(cc,7) = max(TTverts);
+        end
+
+        %%%%% DIV (inverse of maximum diagonal length)
+        if numel(Ldiags) >= 2
+            Lmax = max(Ldiags(1:end-1));
+            metrics_p(cc,8) = 1 / Lmax;
+        elseif numel(Ldiags) == 1
+            metrics_p(cc,8) = 1 / Ldiags(1);
+        else
+            metrics_p(cc,8) = NaN;
+        end
+    end
+
+    headers = {'RR', 'L', 'DET', 'ENTR', 'TT', 'LAM', 'V_max', 'DIV'};
+    metrics_tbl_participants{part} = array2table(metrics_p, 'VariableNames', headers);
+    metrics_participants{part}     = metrics_p;
 end
-headers = {'RR', 'L', 'DET', 'ENTR', 'TT', 'LAM', 'V_max', 'DIV'};
-metrics_tbl = array2table(metrics, 'VariableNames', headers);
 
 %% ---------------------------- Store outputs -----------------------------
 
-RQA_BROADNESS.RecurrencePlots.RecurrencePlot_NOthresh = RP;
-RQA_BROADNESS.RecurrencePlots.RecurrencePlot_thresh = RP_thresh;
-RQA_BROADNESS.RQA_metrics = metrics_tbl;
+% NEW: Per-participant recurrence plots + metrics
+RQA_BROADNESS.RecurrencePlots.DistMat   = RP_participants;        % cell(nCond,nPart)
+RQA_BROADNESS.RecurrencePlots.RecurPlot = RP_thresh_participants; % cell(nCond,nPart)
+RQA_BROADNESS.RQA_metrics               = metrics_tbl_participants;  % {nPart} of tables
 
 %% ------------------------ Helper: parse name/values ---------------------
-
 function opts = parse_name_value_pairs(opts, varargin)
 if mod(length(varargin), 2) ~= 0
     error('Arguments must be given as name-value pairs.');
@@ -403,5 +467,6 @@ for i = 1:2:length(varargin)
     end
 end
 end
-    
+
 end
+

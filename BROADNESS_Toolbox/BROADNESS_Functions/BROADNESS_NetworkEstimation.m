@@ -7,13 +7,13 @@ function [BROADNESS] = BROADNESS_NetworkEstimation(data, time, varargin)
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
-%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2024).
-%  BROADband brain Network Estimation via Source Separation (BROAD-NESS). bioRxiv, 2024-10.
-%  https://doi.org/10.1101/2024.10.31.621257
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science. 
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
 %
 % ========================================================================
 %
-%  This function takes a multivariate dataset (channels or brain voxels × time matrix)
+%  This function takes a multivariate dataset (channels or brain voxels × time matrix [x experimental conditions x participants])
 %  and returns the estimated broadband brain networks.
 %  BROADNESS is particularly suitable for event-related design and for
 %  estimating brain networks in the context of event-related fiels (ERF) or
@@ -22,17 +22,18 @@ function [BROADNESS] = BROADNESS_NetworkEstimation(data, time, varargin)
 % ------------------------------------------------------------------------
 %  INPUT ARGUMENTS:
 % ------------------------------------------------------------------------
-%  - data   : data matrix, typically 2D (e.g. brain sources x time-points or channels x time-points).
-%
-%               optionally it can be 3D (e.g. brain sources x time-points x experimental conditions).
-%               If a third dimension is provided  (e.g. for experimental conditions) PCA will be
-%               computed on the data averaged across the third dimension.
-%               Depending on your experimental needs you might want to compute BROADNESS independently
-%               for each experimental condition or after the average across condition.
-%
-%             NOTE: While this approach can be applied to MEEG scalp sensor data too
-%                   (provide channels instead of brain voxels) source-reconstructed
-%                   brain voxel data is necessary to interpret the output as proper brain networks.
+%  - data   :  DATA MATRIX, either:
+%                   - 2D: sources × time-points  (or channels × time-points)
+%                   - 3D: sources × time-points × conditions
+%                   - 4D: sources × time-points × conditions × participants
+%                   Note on PCA computation:
+%                   - If 3D: average across conditions   → reduces to 2D
+%                   - If 4D: average across participants and then across conditions → reduces to 2D
+%                   General note:
+%                   Depending on experimental needs, BROADNESS can be computed:
+%                   - after averaging across conditions/participants, OR
+%                   - independently for each condition and participant.
+%                   This is a choice that the user should make, after thinking carefully.
 %
 %  - time   : vector with time in seconds
 %
@@ -56,7 +57,7 @@ function [BROADNESS] = BROADNESS_NetworkEstimation(data, time, varargin)
 %                            -'occurrences' = using mean of the negative/positive values occurrences
 %                            -'max_abs' = on the basis of the sign of the maximum value in absolute terms
 %                            -'average' = on the basis of the sign of the average of weights
-%                         Default: no normalization
+%                         Default: max_abs
 %
 % ------------------------------------------------------------------------
 %  OUTPUT ARGUMENTS:
@@ -91,7 +92,7 @@ function [BROADNESS] = BROADNESS_NetworkEstimation(data, time, varargin)
 disp('Checking inputs')
 
 % Defining default values
-opts = struct('time_window', [], 'permutations_num', 0, 'randomization', 1, 'sign_eigenvect', '0');
+opts = struct('time_window', [], 'permutations_num', 0, 'randomization', 1, 'sign_eigenvect', 'max_abs');
 
 % Parsing name-value pair arguments
 opts = parse_name_value_pairs(opts, varargin{:});
@@ -110,8 +111,8 @@ if permutations_num < 0
 end
 sz = size(data);
 non_singleton_dims = sum(sz > 1); %trick to get if the matrix is a vector
-if non_singleton_dims < 2 || non_singleton_dims > 3
-    error('The data matrix must be either 2D (e.g. brain voxels x time) or 3D (brain voxels x time x experimental conditions)')
+if non_singleton_dims < 2 || non_singleton_dims > 4
+    error('The data matrix must be either 2D (e.g. brain voxels x time), 3D (brain voxels x time x experimental conditions), or 4D (brain voxels x time x experimental conditions x participants)')
 end
 if size(data,2) ~= length(time)
     error('The number of time-points in the data matrix (2nd dimension) must be equal to the time-points in the time vector')
@@ -136,10 +137,29 @@ end
 
 disp('Computing PCA')
 
+if non_singleton_dims == 4 %if data is provided for several independent participants
+    data_temp = data; %store the data
+    data = mean(data,4); %average it across participants
+end
+
 data = data(:,idx_start:idx_end,:); %extracting time-window of interest
 time = time(idx_start:idx_end); %same for time vector in seconds
 averaged_data = mean(data(:,:,:),3); %average across 3rd dimension (e.g. experimental conditions)
-[activation_patterns,~,~,~,variance] = pca(averaged_data'); %actual computation of PCA
+
+if exist('pca', 'file') == 2
+    % The PCA function exists (from Statistics Toolbox)
+    disp('Using built-in PCA function...');
+    [activation_patterns,~,~,~,variance] = pca(averaged_data'); %actual computation of PCA
+else
+    % Fallback if PCA function is not available
+    disp('pca() not found — using custom PCA implementation...');
+    data_demeaned = bsxfun(@minus,averaged_data,mean(averaged_data)); %demeaning of the data
+    data_covariance = cov(data_demeaned'); %covariance matrix (note that data_demeaned is transposed, so time-points x brain sources)
+    [activation_patterns,eigenvalues] = eig(data_covariance); %eigenvector solution
+    [eigenvalues,sidx]  = sort( diag(eigenvalues),'descend' ); % the first output returns sorted evals extracted from diagonal
+    activation_patterns = activation_patterns(:,sidx);          % sort eigenvectors
+    variance = eigenvalues.*100./sum(eigenvalues); % normalize eigenvalues to percent variance explained
+end
 
 
 %% PCA on randomized data
@@ -150,7 +170,7 @@ if permutations_num > 0 %if MCS was requested
     
     max_variance_permutations = zeros(permutations_num,1); %preallocating vector for variance explained by 1st PC for each permutation
     variance_randomized_perms = []; %variance of the permuted data to be stored for future plotting purposes
-    for permi = 1:2%permutations_num %over permutations
+    for permi = 1:permutations_num %over permutations
         if randomization == 1     %randomizing only time
             data_reshaped = zeros(size(averaged_data,1),size(averaged_data,2)); %preallocating matrix for randomized data
             for sourci = 1:size(averaged_data,1) %over brain sources
@@ -169,7 +189,17 @@ if permutations_num > 0 %if MCS was requested
             data_reshaped_dummy(1:size(averaged_data,1)*size(averaged_data,2)) = averaged_data(idx_dummy); %taking elements in matrix data with index idx_dummy
             data_reshaped = reshape(data_reshaped_dummy,[size(averaged_data,1),size(averaged_data,2)]); %reshaping the vector into a matrix shaped as the original data
         end
-        [~,~,~,~,variance_randomized] = pca(data_reshaped'); %PCA on randomized data
+        if exist('pca', 'file') == 2
+            % The PCA function exists (from Statistics Toolbox)
+            [~,~,~,~,variance_randomized] = pca(data_reshaped'); %PCA on randomized data
+        else
+            % Fallback if PCA function is not available
+            data_demeaned_r = bsxfun(@minus,data_reshaped,mean(data_reshaped)); %demeaning of the data
+            data_covariance_r = cov(data_demeaned_r'); %covariance matrix (note that data_demeaned is transposed, so time-points x brain sources)
+            [~,eigenvalues_r] = eig(data_covariance_r); %eigenvector solution
+            [eigenvalues_r,sidx_r]  = sort( diag(eigenvalues_r),'descend' ); % the first output returns sorted evals extracted from diagonal
+            variance_randomized = eigenvalues_r.*100./sum(eigenvalues_r); % normalize eigenvalues to percent variance explained
+        end
         variance_randomized_perms = cat(2,variance_randomized_perms,variance_randomized); %storing variance of the permuted data to be stored for future plotting purposes
         max_variance_permutations(permi,1) = max(max(variance_randomized)); %storing maximum variance (max eigenvalue) occurring for PCs in randomized data
         disp(['Permutation number ' num2str(permi) ' / ' num2str(permutations_num)])
@@ -188,7 +218,7 @@ else
 end
 
 
-%% normalizing eigenvectors signs (not necessarily recommended but possible in case the user wishes to do it)  
+%% normalizing eigenvectors signs
 
 dummy_ones = ones(size(activation_patterns,1),size(activation_patterns,2)); %vector of 1s with length of significant PCs
 switch sign_eigenvect
@@ -230,35 +260,37 @@ BROADNESS.ActivationPatterns_BrainNetworks = activation_patterns; %weights of PC
 if isempty(PCs) %very unlikely case where no PCs of the original data explain a higher variance than the randomized data
     TimeSeries = [];
 else
-    TimeSeries = zeros(size(activation_patterns,2),PCs(end),size(data,3)); %preallocating matrix for brain networks time series
-    for condi = 1:size(data,3) %over experimental conditions (or whatever the user has in the 3rd dimension of the data matrix)
-        TimeSeries(:,:,condi) = data(:,1:size(activation_patterns,2),condi)' * activation_patterns(:,PCs); %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each voxel activation by its corresponding load
+    if non_singleton_dims == 4 %if data is provided for several independent participants
+        TimeSeries = zeros(length(time),PCs(end),size(data_temp,3),size(data_temp,4));
+        for parti = 1:size(data_temp,4) %over participants
+            disp(['Computing time series for participant ' num2str(parti) ' / ' num2str(size(data_temp,4))])
+            for condi = 1:size(data,3) %over experimental conditions (or whatever the user has in the 3rd dimension of the data matrix)
+                TimeSeries(:,:,condi,parti) = data_temp(:,1:length(time),condi,parti)' * activation_patterns(:,PCs); %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each voxel activation by its corresponding load
+            end
+        end
+    else
+        TimeSeries = zeros(length(time),PCs(end),size(data,3)); %preallocating matrix for brain networks time series
+        for condi = 1:size(data,3) %over experimental conditions (or whatever the user has in the 3rd dimension of the data matrix)
+            TimeSeries(:,:,condi) = data(:,1:length(time),condi)' * activation_patterns(:,PCs); %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each voxel activation by its corresponding load
+        end
+        
     end
 end
 
 BROADNESS.TimeSeries_BrainNetworks = TimeSeries; %storing PCA time series
 
 BROADNESS.Time = time; %storing time
-BROADNESS.OriginalData = data; %storing original data
+if non_singleton_dims == 4 %if data is provided for several independent participants
+    BROADNESS.OriginalData = data_temp; %storing original data
+else
+    BROADNESS.OriginalData = data;
+end
+
 
 %%
-
-
-%% PCA (INDEPENDENT STEPS) - MANUAL SOLUTION %%%
-%%% Please, note that this was left just for educational purposes, but
-%%% currently, by default, Matlab centers the data and uses the singular value decomposition (SVD) algorithm instead.
-
-% data_demeaned = bsxfun(@minus,data,mean(data)); %demeaning of the data
-% data_covariance = cov(data_demeaned'); %covariance matrix (note that data_demeaned is transposed, so time-points x brain sources)
-% [eigenvectors,eigenvalues] = eig(data_covariance); %eigenvector solution
-% %getting eigenvalues from diagonal matrix (correspond to variance explained by the different PCs)
-% eigenvalues_sorted = eigenvalues(eigenvalues~=0);
-% eigenvalues_sorted = eigenvalues_sorted(end:-1:1); %sorting eigenvalues (since they are original from the smallest to the highest explained variance)
-
-%%
-
 
 %% Helper Function: Parse Name-Value Pairs
+
 function opts = parse_name_value_pairs(opts, varargin)
 if mod(length(varargin), 2) ~= 0
     error('Arguments must be given as name-value pairs.');
