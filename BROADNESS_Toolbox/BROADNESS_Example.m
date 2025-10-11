@@ -4,52 +4,38 @@
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
-%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2024).
-%  BROADband brain Network Estimation via Source Separation (BROAD-NESS). bioRxiv, 2024-10.
-%  https://doi.org/10.1101/2024.10.31.621257
-%
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science.
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
 %
 % ========================================================================
 %
 %  This script demonstrates the application of BROADNESS 
 %  (Broadband Brain Network Estimation via Source Separation).
 %
-%  The example dataset consists of data averaged across participants recorded
-%  during an auditory (musical) memory recognition task and is available at the following link:
-%  10.5281/zenodo.17048136
+%  The example dataset consists of data in the following format:
+%  brain voxel (sources) x time x experimental conditions (already averaged across trials) x participants
+%  The dataset is available at the following link:
+%  https://zenodo.org/records/17048137
+%  To follow the suggested workflow with example data, please donwload
+%  "Dataset_1_IndividualParticipants.zip" and "Dataset_2_IndividualParticipants.zip"
+%  for the MEG data for each participant and "DataReduced_AveragedOverParticipants_Example.mat"
+%  for the time in seconds.
+%
+%  PLEASE NOTE
+%  The current BROADNESS pipeline takes as input a single 4D matrix that
+%  includes all individual participants’ data, computes the group average
+%  for network estimation (using PCA or ICA), and then outputs the corresponding
+%  time series for each participant for statistical analysis.
+%  The spatial activation patterns of the networks is instead provided for
+%  the group level.
+%  Note that if you wish to only have a quick computation on the data averaged across
+%  participants, you can use the data averaged across participants available
+%  in "DataReduced_AveragedOverParticipants_Example.mat".
 %
 %
-%  PLEASE, NOTE:
-%  The BROADNESS toolbox (PCA or ICA) can be run on data averaged across
-%  participants to estimate the *spatial patterns* (brain networks). 
-%  However, statistical analyses should NOT be performed on the group-averaged 
-%  time series — instead, they should be computed at the participant level.
-%
-%  Recommended workflow:
-%    1) Run BROADNESS_NetworkEstimation (PCA) or 
-%       BROADNESS_AlternativeNetworkEstimation_ICA (ICA) 
-%       on data averaged across participants to estimate the networks.
-%
-%    2) From the output, extract:
-%          ActivationPatterns_BrainNetworks
-%       (matrix of spatial patterns: [voxels × networks])
-%
-%    3) For each participant, project their own data onto these spatial patterns:
-%          participant_TS = participant_data(:, 1:size(ActivationPatterns_BrainNetworks,2))' * ActivationPatterns_BrainNetworks;
-%       This yields participant-specific network time series using the group-defined networks.
-%
-%    4) Perform your preferred statistical analyses on these participant-level
-%       time series according to your experimental design.
-%
-%  This approach provides a fast, reliable way to estimate networks from 
-%  group data, while ensuring that statistics are computed at the individual level.
-%
-%  We will soon release an example pipeline demonstrating these steps in code.
-%  Until then, feel free to reach out for guidance:
-%    Leonardo Bonetti  – leonardo.bonetti@clin.au.dk | leonardo.bonetti@psych.ox.ac.uk
-%    Mattia Rosso      – mattia.rosso@clin.au.dk
-%
-%
+% ========================================================================
+
 %  The experimental task is described in detail both in the BROADNESS paper
 %  referenced above and in the following paper:
 %  Bonetti, L., Fernández-Rubio, G., Carlomagno, F., Dietz, M., Pantazis, D., Vuust, P.,
@@ -57,7 +43,7 @@
 %  recognition and predictive coding. Nature Communications, 15(1), 4313.
 %
 %  The script loads the example datasets into the MATLAB workspace and 
-%  calls three core functions:
+%  calls five core functions plus a start-up:
 %
 % ------------------------------------------------------------------------
 %  FUNCTIONS OVERVIEW:
@@ -120,13 +106,28 @@ BROADNESS_Startup(path_home);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-% Simply loading data (brain_voxel-by-time matrix) and time
-load([path_home '/Data_Example.mat'])  % Resting-state data
+%%% Here, you need to load the data stored in:
+% "Dataset_1_IndividualParticipants.zip" and
+% "Dataset_2_IndividualParticipants.zip"
+% You should also concatenate such data, following the example below.
+% Please, note that if you do not have enough memory of your computer,
+% you can limit the analysis to a subset of participants if you are only
+% practicising with the toolbox.
+list_participants = dir('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/Dataset_1_IndividualParticipants/*.mat');
+DATA = [];
+for ii = 1:length(list_participants)
+    load([list_participants(ii).folder '/' list_participants(ii).name]);
+    DATA = cat(4,DATA,Data(:,1:776,:));
+    disp(['loading participant ' num2str(ii) ' / ' num2str(length(list_participants))])
+end
+% Also, remember to load time from the file named:
+% "DataReduced_AveragedOverParticipants_Example.mat"
+load('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/DataReduced_AveragedOverParticipants_Example.mat','time');
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
 % Run BROADNESS network estimation (default parameters)
-BROADNESS = BROADNESS_NetworkEstimation(data, time);
+BROADNESS = BROADNESS_NetworkEstimation(DATA, time);
 
 %%
 
@@ -140,8 +141,24 @@ BROADNESS = BROADNESS_NetworkEstimation(data, time);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-% Simply loading data (brain_voxel-by-time matrix) and time
-load([path_home '/Data_Example.mat'])  % Resting-state data
+%%% Here, you need to load the data stored in:
+% "Dataset_1_IndividualParticipants.zip" and
+% "Dataset_2_IndividualParticipants.zip"
+% You should also concatenate such data, following the example below.
+% Please, note that if you do not have enough memory of your computer, for now
+% you can limit the analysis to a subset of participants.
+list_participants = dir('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/Dataset_1_IndividualParticipants/*.mat');
+DATA = [];
+for ii = 1:length(list_participants)
+    load([list_participants(ii).folder '/' list_participants(ii).name]);
+    DATA = cat(4,DATA,Data(:,1:776,:));
+    disp(['loading participant ' num2str(ii) ' / ' num2str(length(list_participants))])
+end
+
+% Also, remember to load time from the file named:
+% "DataReduced_AveragedOverParticipants_Example.mat"
+load('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/DataReduced_AveragedOverParticipants_Example.mat','time');
+
 % Optional arguments
 time_window = [0.350 1.750];
 permutations_num = 10;
@@ -150,7 +167,7 @@ sign_eigenvect = '0';
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-BROADNESS = BROADNESS_NetworkEstimation(data, time, ...
+BROADNESS = BROADNESS_NetworkEstimation(DATA, time, ...
                                 'time_window', time_window, 'permutations_num', permutations_num, 'randomization', randomization, 'sign_eigenvect', sign_eigenvect); %% Call with optional parameters
 
 %%
@@ -194,8 +211,8 @@ Options = [];
 Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
 load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
-Options.WhichPlots = [0 0 1 0 0]; %which plots to be generated
-Options.ncomps = [1:3]; %indices of PCs to be plotted (all plots)
+Options.WhichPlots = [0 0 0 0 1]; %which plots to be generated
+Options.ncomps = [1 2]; %indices of PCs to be plotted (all plots)
 Options.ncomps_var = 60; %number of PCs to be plotted (only in Variance plot)
 Options.Labels = {'Memorized','NewT1','NewT2','NewT3','NewT4'}; %experimental condition labels
 Options.color_PCs = [
@@ -248,7 +265,9 @@ BROADNESS_Visualizer(BROADNESS,Options)
 % Simply use the structure outputted by the BROADNESS_NetworkEstimation function
 % Additional optional inputs can be provided, as described in the function. 
 
-RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'threshold',0.1,'video','on','figure','on');
+%%% ------------------ COMPUTATION --------------------- %%%
+
+RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'threshold',0.1,'video','off','figure','on');
 
 %%
 
@@ -259,7 +278,12 @@ RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'thres
 % Simply use the structure outputted by the BROADNESS_NetworkEstimation function
 % Additional optional inputs can be provided, as described in the function. 
 
-SPATIAL_GRADIENTS_BROADNESS = BROADNESS_SpatialGradients(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'scatterplots','all','outpath','/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025');
+load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
+Options.MNI_coords = MNI8;
+
+%%% ------------------ COMPUTATION --------------------- %%%
+
+SPATIAL_GRADIENTS_BROADNESS = BROADNESS_SpatialGradients(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'mni_coords', Options.MNI_coords);
 
 %%
 
@@ -269,11 +293,29 @@ SPATIAL_GRADIENTS_BROADNESS = BROADNESS_SpatialGradients(BROADNESS,'principalcom
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-% Simply loading data (brain_voxel-by-time matrix) and time
-load([path_home '/Data_Example.mat'])  % Resting-state data
+%%% As for the PCA approach, here you need to load the data stored in:
+% "Dataset_1_IndividualParticipants.zip" and
+% "Dataset_2_IndividualParticipants.zip"
+% You should also concatenate such data, following the example below.
+% Please, note that if you do not have enough memory of your computer, for now
+% you can limit the analysis to a subset of participants.
+list_participants = dir('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/Dataset_1_IndividualParticipants/*.mat');
+DATA = [];
+for ii = 1:length(list_participants)
+    load([list_participants(ii).folder '/' list_participants(ii).name]);
+    DATA = cat(4,DATA,Data(:,1:776,:));
+    disp(['loading participant ' num2str(ii) ' / ' num2str(length(list_participants))])
+end
+% Also, remember to load time from the file named:
+% "DataReduced_AveragedOverParticipants_Example.mat"
+load('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/DataReduced_AveragedOverParticipants_Example.mat','time');
 % Additional optional inputs can be provided, as described in the function. 
 
-BROADNESS_ICA = BROADNESS_AlternativeNetworkEstimation_ICA(data, time, 'icacomps', 5, 'total_varexp', 95);
+%%% ------------------ COMPUTATION --------------------- %%%
+
+BROADNESS_ICA = BROADNESS_AlternativeNetworkEstimation_ICA(DATA, time, 'icacomps', 10, 'total_varexp', 95);
+
+%%
 
 %% 2) BROADNESS VISUALIZATION (USED FOR ICA)
 
@@ -284,7 +326,6 @@ BROADNESS_ICA = BROADNESS_AlternativeNetworkEstimation_ICA(data, time, 'icacomps
 %   #4) Activation patterns of the networks (3D)
 %   #5) Activation patterns of the networks (nifti images)
 
-
 %%% ------------------- USER SETTINGS ------------------- %%%
 
 % Minimal user settings: output folder
@@ -292,10 +333,9 @@ Options = [];
 Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
 load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
-Options.WhichPlots = [0 0 1 0 0]; %which plots to be generated
-Options.ncomps = [3]; %indices of PCs to be plotted (all plots)
+Options.WhichPlots = [0 0 0 0 0]; %which plots to be generated
+% Options.ncomps = [1:10]; %indices of PCs to be plotted (all plots)
 Options.Labels = {'Memorized','NewT1','NewT2','NewT3','NewT4'}; %experimental condition labels
-
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
@@ -310,15 +350,8 @@ BROADNESS_Visualizer(BROADNESS_ICA,Options)
 
 %% FINAL REMARKS
 
-% This demonstration uses data from averaged participants.  
-% If you want to compute statistics, the best solution is to use the
-% activation patterns computed here (in PCA on the average across participants)
-% to calculate the time series independently for each participant (i.e.
-% multiplying the "grup-level" activation patterns by the data,
-% independnely for each participant).
-
 % Please check the BROADNESS GitHub repository for new releases.  
-% https://github.com/leonardob92/BROADNESS_MEG_AuditoryRecognition.git
+% https://github.com/leonardob92/BROADNESS_MEG_AuditoryRecognition/tree/main/BROADNESS_Toolbox
 % Feel free to reach out to us if you need guidance or consultation.  
 % Leonardo Bonetti: leonardo.bonetti@clin.au.dk
 %                   leonardo.bonetti@psych.ox.ac.uk
@@ -327,8 +360,8 @@ BROADNESS_Visualizer(BROADNESS_ICA,Options)
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
-%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2024).
-%  BROADband brain Network Estimation via Source Separation (BROAD-NESS). bioRxiv, 2024-10.
-%  https://doi.org/10.1101/2024.10.31.621257
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science.
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
 
 %%
