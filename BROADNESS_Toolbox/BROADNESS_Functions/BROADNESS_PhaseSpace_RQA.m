@@ -216,7 +216,8 @@ for cond = 1:nCond % over conditions
 end
 
 %% ---------------------- Display phase space video -----------------------
-% (UNCHANGED) — will now use the averaged `phase_space`
+
+% will now use the averaged `phase_space`
 if strcmp(video, 'on')
     if length(PCs) == 2
         targetTicks = 10; % how many ticks you want on the colorbar
@@ -319,23 +320,86 @@ end
 %% ------------------------- Recurrence plots -----------------------------
 
 if strcmp(figurel, 'on')
+    % ------------------ Phase-space scatter (static) ------------------
+    % Plot the averaged phase-space scatter plots (2D or 3D) so that
+    % figure='on' produces the phase-space visuals even if video='off'.
+    for cond = 1:numel(phase_space)
+        PS = phase_space{cond};
+        nTps = size(PS,1);
+        cmap = jet(nTps);
+        scatsize = 36;
+
+        if size(PS,2) == 2
+            figure;
+            hold on;
+            set(gcf,'Color','w');
+            grid minor; box on;
+            xlabel('Brain network 1'); ylabel('Brain network 2');
+            title(['Phase space (static) - Condition ' num2str(cond)]);
+            xlim([min(PS(:,1)) max(PS(:,1))]);
+            ylim([min(PS(:,2)) max(PS(:,2))]);
+
+            % color by time
+            for ii = 1:nTps
+                scatter(PS(ii,1), PS(ii,2), scatsize, cmap(ii,:), 'filled');
+            end
+            c = colorbar;
+            colormap(jet);
+            % create tick labels using the reduced_time_idx mapping to time
+            t_ticks = round(linspace(1, nTps, min(10, nTps)));
+            c.Ticks = linspace(0,1,numel(t_ticks));
+            c.TickLabels = time(reduced_time_idx(t_ticks));
+            hold off;
+            axis square;
+
+        elseif size(PS,2) == 3
+            figure;
+            hold on;
+            set(gcf,'Color','w');
+            view(3);
+            axis vis3d;
+            grid minor; box on;
+            xlabel('Brain network 1'); ylabel('Brain network 2'); zlabel('Brain network 3');
+            title(['Phase space (static, 3D) - Condition ' num2str(cond)]);
+            xlim([min(PS(:,1)) max(PS(:,1))]);
+            ylim([min(PS(:,2)) max(PS(:,2))]);
+            zlim([min(PS(:,3)) max(PS(:,3))]);
+
+            for ii = 1:nTps
+                scatter3(PS(ii,1), PS(ii,2), PS(ii,3), scatsize, 'MarkerFaceColor', cmap(ii,:), 'MarkerEdgeColor', cmap(ii,:));
+            end
+            c = colorbar;
+            colormap(jet);
+            t_ticks = round(linspace(1, nTps, min(10, nTps)));
+            c.Ticks = linspace(0,1,numel(t_ticks));
+            c.TickLabels = time(reduced_time_idx(t_ticks));
+            hold off;
+            axis square;
+
+        else
+            % For >3D, skip static visualization (you already warn for video)
+            warning('Static phase-space scatter is available only for 2 or 3 principal components.');
+        end
+    end
+
+    % ----------------------- Recurrence plots -------------------------
     % Plotting the NO THRESHOLDED recurrence plot for each condition
     for cond = 1:size(DM,1) % over conditions
         figure;
-        imagesc(time(reduced_time_idx), time(reduced_time_idx), DM{cond}); 
+        imagesc(time(reduced_time_idx), time(reduced_time_idx), DM{cond});
         xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
         colorbar
         set(gcf,'Color','w')
         % Flip colormap: recurrence = blue, non-recurrence = yellow
-        colormap(flipud(parula));  
+        colormap(flipud(parula));
         title(['Condition ' num2str(cond) ' no thresholding'])
         axis square
     end
-    
+
     % Plotting the THRESHOLDED recurrence plot for each condition
     for cond = 1:size(RP,1) % over conditions
         figure;
-        imagesc(time(reduced_time_idx), time(reduced_time_idx), RP{cond}); 
+        imagesc(time(reduced_time_idx), time(reduced_time_idx), RP{cond});
         xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
         colorbar
         set(gcf,'Color','w')
@@ -343,6 +407,34 @@ if strcmp(figurel, 'on')
         axis square
     end
 end
+
+
+
+% if strcmp(figurel, 'on')
+%     % Plotting the NO THRESHOLDED recurrence plot for each condition
+%     for cond = 1:size(DM,1) % over conditions
+%         figure;
+%         imagesc(time(reduced_time_idx), time(reduced_time_idx), DM{cond}); 
+%         xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
+%         colorbar
+%         set(gcf,'Color','w')
+%         % Flip colormap: recurrence = blue, non-recurrence = yellow
+%         colormap(flipud(parula));  
+%         title(['Condition ' num2str(cond) ' no thresholding'])
+%         axis square
+%     end
+%     
+%     % Plotting the THRESHOLDED recurrence plot for each condition
+%     for cond = 1:size(RP,1) % over conditions
+%         figure;
+%         imagesc(time(reduced_time_idx), time(reduced_time_idx), RP{cond}); 
+%         xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
+%         colorbar
+%         set(gcf,'Color','w')
+%         title(['Condition ' num2str(cond) ' thresholding ' num2str(eps*100) '%'])
+%         axis square
+%     end
+% end
 
 %% --------------------- PER-PARTICIPANT RP + METRICS ---------------------
 
