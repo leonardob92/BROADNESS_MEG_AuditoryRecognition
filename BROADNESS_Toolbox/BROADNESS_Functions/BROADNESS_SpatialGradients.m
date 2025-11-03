@@ -39,7 +39,8 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %      - 'thresh'                          : Threshold for including voxel activations (default: mean + std)
 %      - 'scatterplots'                    : Set to 'all' to plot cluster results for all k
 %      - 'outpath'                         : If provided, saves NIFTI maps of clusters (default: [])
-%      - 'mni_coords'                      : MNI coordinates (Nvoxels x 3) for 3D plotting in brain template 
+%      - 'mni_coords'                      : MNI coordinates (Nvoxels x 3) for 3D plotting in brain template
+%                                            If empty, trying to read a default from files in 'External' function. This is in MNI space 8mm (LBPD order) 
 %
 % ------------------------------------------------------------------------
 %  OUTPUT:
@@ -224,9 +225,9 @@ end
 
 % Convert to user-friendly tables (columns labeled by k)
 varNamesByK = matlab.lang.makeValidName("Nclusters_" + string(clusterRange));
-S_GRAD.idx       = array2table(clusterAssignmentsAll(2:end,:), 'VariableNames', varNamesByK);
-S_GRAD.SUM       = array2table(withinClusterSums(:,2)', 'VariableNames', varNamesByK);
-S_GRAD.Centroids = cell2table(clusterCentroidsAll, 'VariableNames', varNamesByK);
+S_GRAD.idx              = array2table(clusterAssignmentsAll(2:end,:), 'VariableNames', varNamesByK);
+S_GRAD.SUM              = array2table(withinClusterSums(:,2)', 'VariableNames', varNamesByK);
+S_GRAD.Centroids        = cell2table(clusterCentroidsAll, 'VariableNames', varNamesByK);
 
 % -------- Elbow plot (sum of distances vs number of clusters) -----------
 figure;
@@ -273,7 +274,8 @@ for pcVal = selectedPCs
     tableHeaders{end+1} = ['PC' num2str(pcVal)];
 end
 
-% For each cluster, assemble a table of its voxels (not saved by default)
+Clusters_info = cell(optimalK,1);
+% For each cluster, assemble a table of its voxels
 for cl = 1:optimalK
     % Binary membership vector for this cluster
     clusterMaskBinary = (clustersForOptimalK == cl);
@@ -281,13 +283,19 @@ for cl = 1:optimalK
     % Collect activations and coordinates for voxels in this cluster
     voxelIdxList = find(clusterMaskBinary);
     clusterActivations = thresholdedActivations(voxelIdxList, :);
-    MNIcoords = coordinates.MNI8(voxelIdxList, :);
+    if isempty(mni_coords)
+        MNIcoords = coordinates.MNI8(voxelIdxList, :);
+    else
+        MNIcoords = mni_coords(voxelIdxList, :);
+    end
 
     % Compose table data: a running index within the cluster, coords, activations
     excel_data = [(1:size(clusterActivations,1))', MNIcoords, clusterActivations];
-    tbl = array2table(excel_data, 'VariableNames', tableHeaders); %#ok<NASGU>
-    % (Not saving to disk here; kept consistent with original behavior.)
+    tbl = array2table(excel_data, 'VariableNames', tableHeaders);
+    Clusters_info{cl} = tbl; % Store information
 end
+
+S_GRAD.Clusters_info    = Clusters_info;
 
 %% ----------------------- Scatter plots (PC space) -----------------------
 

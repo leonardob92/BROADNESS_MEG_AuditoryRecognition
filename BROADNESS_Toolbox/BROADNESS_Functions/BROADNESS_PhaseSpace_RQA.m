@@ -48,8 +48,8 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %      - 'principalcomps'               : Vector of PC indices to use in phase space (default: 1:10)
 %      - 'timeinterval'                 : [start_time end_time] in seconds for analysis (default: full range)
 %      - 'threshold'                    : Fraction of max distance to define recurrences (default: 0.1)
-%      - 'video'                        : 'on' or 'off' to show animated phase space plot (default: 'on')
-%      - 'figure'                       : 'on' or 'off' to show the figures (default: 'on')
+%      - 'video'                        : 'on' or 'off' to show animated phase space plot (default: 'off')
+%      - 'figure'                       : 'on' or 'off' to show the figures (default: 'off')
 %
 % ------------------------------------------------------------------------
 %  OUTPUT:
