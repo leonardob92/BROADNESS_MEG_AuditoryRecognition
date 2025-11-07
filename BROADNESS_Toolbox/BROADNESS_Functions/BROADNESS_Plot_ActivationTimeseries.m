@@ -71,9 +71,50 @@ function BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
 %  mattia.rosso@clin.au.dk
 %  Center for Music in the Brain, Aarhus University
 %  Centre for Eudaimonia and Human Flourishing, Linacre College, University of Oxford
-%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 22/07/2025
+%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 07/11/2025
 % ========================================================================
 
+%% Example usage with several optional parameters
+
+% % Define a color for each condition × group
+% % Each cell corresponds to a condition
+% % Each row inside the matrix corresponds to a group
+% % Format: { [group1_color; group2_color], ... }
+% 
+% % Define color scheme for each condition × group
+% ConditionXGroupColors = {
+%     [0.8 0.2 0.2; 0.5 0.1 0.1];   % Condition 1: light red / dark red
+%     [0.2 0.4 0.8; 0.1 0.2 0.5];   % Condition 2: light blue / dark blue
+%     [0.4 0.7 0.2; 0.2 0.5 0.1];   % Condition 3: light green / dark green
+%     [0.7 0.3 0.7; 0.4 0.2 0.5];   % Condition 4: light purple / dark purple
+%     [0.2 0.7 0.7; 0.1 0.5 0.5];   % Condition 5: light cyan / dark cyan
+% };
+% 
+% % Call the function
+% BROADNESS_Plot_ActivationTimeseries(data, time, ...
+%     'Groups', {[1:30], [34:81]}, ...
+%     'GroupLabels', {'Group A', 'Group B'}, ...
+%     'ConditionLabels', {'Old', 'New', 'Cond 3', 'Cond 4', 'Cond 5'}, ...
+%     'ConditionXGroupColors', ConditionXGroupColors, ...
+%     'SignificantWindows', {
+%         {[0.4 0.6], [0.9 1.1]};                  % Level 1
+%         {[0.2 0.5]};                             % Level 2
+%         {[0.3 0.4], [0.9 1.3], [1.2 1.5]}        % Level 3
+%     }, ...
+%     'SignificanceColors', [
+%         1 0 0;       % red      → for level 1
+%         0 0.5 1;     % blue     → for level 2
+%         0 0.8 0.2    % green    → for level 3
+%     ], ...
+%     'SignificanceStyle', 'line', ...
+%     'SignificanceLineOffset', 0.03, ...
+%     'SignificanceLinePadding', 0.05, ...
+%     'SignificanceLinePosition', 'above', ...
+%     'STEStyle', 2, ...
+%     'Transparency', 0.2, ...
+%     'XLimits', [-0.1 3]);
+
+%%
 
 
 
@@ -81,6 +122,10 @@ function BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
 
 
 
+
+
+
+%% ACTUAL COMPUTATION
 
 %% ----------------------------
 % STEP 1: Set default options
