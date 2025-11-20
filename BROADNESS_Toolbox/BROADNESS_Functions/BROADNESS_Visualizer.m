@@ -34,6 +34,8 @@ function BROADNESS_Visualizer(BROADNESS, Options)
 %    - All requested networks are plotted together in a 3D visualization of the brain.  
 %    - NIFTI files are generated for each network, allowing further  
 %      inspection in FSLeyes or similar software for visualization.
+%    - Excel files are generated with thresholded activation patterns (mean plus 1SD)
+%      for each brain network. 
 %
 % ------------------------------------------------------------------------
 %  INPUT ARGUMENTS:
