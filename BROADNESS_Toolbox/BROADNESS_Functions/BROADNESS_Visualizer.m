@@ -194,6 +194,9 @@ end
 %     ncomps = 1:5;
 % end
 
+% for later plotting solutions
+thresh_nsdt = 1; % how many std away from the mean, for thresholding the visualization
+
 
 
 
@@ -340,7 +343,6 @@ if Options.WhichPlots(4) == 1
     % Some default settings
     skipper  = 1;          % parameter for donwsampling the visualization
     scale_size = 100;      % scaling factor for activation patterns in the brain
-    thresh_nsdt = 1; % how many std away from the mean, for thresholding the visualization
     
     % Opening figure
     openfig('BrainTemplate_GT.fig')
@@ -413,6 +415,10 @@ if Options.WhichPlots(5) == 1
     
     for compi = 1:length(ncomps) % Over components given as input
         
+        % Assigning temporary activation pattern to plot
+        pat2plot = ActPat(:,ncomps(compi));
+        pat2plot( pat2plot < mean(pat2plot)+thresh_nsdt*std(pat2plot) ) = 0;  % apply threshold
+        
         num_points = size(MNI_coords, 1);
         voxel_coords = zeros(num_points, 3);
         
@@ -437,7 +443,7 @@ if Options.WhichPlots(5) == 1
             dims = size(nii_data);
             if x > 0 && x <= dims(1) && y > 0 && y <= dims(2) && z > 0 && z <= dims(3)
                 %             if all([x, y, z] > 0) && all([x, y, z] <= size(nii_data))
-                nii_data(x, y, z) = ActPat(ii, ncomps(compi));
+                nii_data(x, y, z) = pat2plot(ii);%ActPat(ii, ncomps(compi));
             end
         end
         
