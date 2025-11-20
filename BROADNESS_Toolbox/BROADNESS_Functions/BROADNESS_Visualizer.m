@@ -391,7 +391,7 @@ end
 if Options.WhichPlots(5) == 1
     
     disp('Generating and saving NIFTI images of brain network activation patterns...');
-    
+
     % Creating directory for storing BROADNESS NIFTI output files
     nifti_path = [Options.name_nii '/BROADNESS_Output/BROADNESS_nifti'];
     mkdir(nifti_path)
@@ -419,6 +419,55 @@ if Options.WhichPlots(5) == 1
         pat2plot = ActPat(:,ncomps(compi));
         pat2plot( pat2plot < mean(pat2plot)+thresh_nsdt*std(pat2plot) ) = 0;  % apply threshold
         
+        % -----------------------
+        % Create table of non-zero activations (index, MNI coords, activation)
+        % -----------------------
+        % Find voxels with non-zero activation after thresholding
+        voxelIdxList = find(pat2plot ~= 0);
+        
+        if ~isempty(voxelIdxList)
+            % Collect activations for those voxels
+            NetworkActPats = pat2plot(voxelIdxList);
+            
+            % Choose MNI coordinates to use for the table:
+            % Prefer the per-component MNI_coords (Options.MNI_coords) if available,
+            % otherwise fall back to coordinates.MNI8 (global grid). The typical case
+            % is that MNI_coords rows correspond to pat2plot entries, so we index into them.
+            if exist('MNI_coords','var') && ~isempty(MNI_coords)
+                MNIcoords_for_table = MNI_coords(voxelIdxList, :);
+            else
+                % If MNI_coords not provided, try to use coordinates.MNI8
+                % NOTE: This assumes voxelIdxList indexes into coordinates.MNI8 appropriately.
+                MNIcoords_for_table = coordinates.MNI8(voxelIdxList, :);
+            end
+            
+            % Compose table data: running index within the list, coords, activations
+            excel_data = [(1:size(NetworkActPats,1))', MNIcoords_for_table, NetworkActPats];
+            
+            % Create headers: Index, X, Y, Z, Activation
+            tableHeaders = [{'Index','X','Y','Z','Activation'}];
+            
+            % Convert to table
+            tbl = array2table(excel_data, 'VariableNames', tableHeaders);
+            
+            % Save the table to an Excel file in the nifti_path
+            % Filename includes component number (ncomps(compi))
+            table_filename = fullfile(nifti_path, sprintf('ActivationTable_BrainNetwork_%d.xlsx', ncomps(compi)));
+            try
+                writetable(tbl, table_filename);
+                disp(['Saved activation table: ' table_filename]);
+            catch ME
+                warning('Could not write activation table to Excel: %s\nFalling back to .mat save. Error: %s', table_filename, ME.message);
+                save(fullfile(nifti_path, sprintf('ActivationTable_Component_%d.mat', ncomps(compi))), 'tbl');
+            end
+        else
+            disp(['No suprathreshold voxels for component ' num2str(ncomps(compi)) '; skipping table creation.']);
+        end
+        
+        % -----------------------
+        % Continue with voxel -> NIfTI mapping
+        % -----------------------
+
         num_points = size(MNI_coords, 1);
         voxel_coords = zeros(num_points, 3);
         
