@@ -419,7 +419,8 @@ if Options.WhichPlots(5) == 1
         
         % Assigning temporary activation pattern to plot
         pat2plot = ActPat(:,ncomps(compi));
-        pat2plot( pat2plot < mean(pat2plot)+thresh_nsdt*std(pat2plot) ) = 0;  % apply threshold
+%         pat2plot( pat2plot < mean(pat2plot)+thresh_nsdt*std(pat2plot) ) = 0;  % apply threshold
+        pat2plot( abs(pat2plot) < mean(abs(pat2plot))+thresh_nsdt*std(abs(pat2plot)) ) = 0;  % apply threshold
         
         % -----------------------
         % Create table of non-zero activations (index, MNI coords, activation)
