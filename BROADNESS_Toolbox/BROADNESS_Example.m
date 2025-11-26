@@ -152,11 +152,15 @@ BROADNESS = BROADNESS_NetworkEstimation(DATA, time);
 % Please, note that if you do not have enough memory of your computer, for now
 % you can limit the analysis to a subset of participants.
 list_participants = dir('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/Dataset_1_IndividualParticipants/*.mat');
-DATA = [];
-for ii = 1:length(list_participants)
-    load([list_participants(ii).folder '/' list_participants(ii).name]);
-    DATA = cat(4,DATA,Data(:,1:776,:));
+disp(['loading participant 1 / ' num2str(length(list_participants))])
+load([list_participants(1).folder '/' list_participants(1).name]);
+SS = size(Data);
+DATA = zeros(SS(1),776,SS(3),length(list_participants)); %preallocating space for all data
+DATA(:,:,:,1) = Data(:,1:776,:); %storing data for participant 1
+for ii = 2:length(list_participants) %over participants
     disp(['loading participant ' num2str(ii) ' / ' num2str(length(list_participants))])
+    load([list_participants(ii).folder '/' list_participants(ii).name]); %loading data for participant ii
+    DATA(:,:,:,ii) = Data(:,1:776,:); %storing data progressively for each participant
 end
 
 % Also, remember to load time from the file named:
