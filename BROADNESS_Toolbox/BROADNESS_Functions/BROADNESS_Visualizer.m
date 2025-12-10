@@ -384,7 +384,7 @@ if Options.WhichPlots(4) == 1
     set(gcf, 'Color', 'w'); % Setting figure background to white
     camlight; lighting gouraud;
     
-    title("3D Spatial Patterns of Brain Networks", 'FontSize', 16, 'FontWeight', 'bold')
+    title('3D Spatial Patterns of Brain Networks', 'FontSize', 16, 'FontWeight', 'bold')
 end
 
 

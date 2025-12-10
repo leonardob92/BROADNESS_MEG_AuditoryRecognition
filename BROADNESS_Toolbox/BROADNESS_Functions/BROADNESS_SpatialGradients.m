@@ -224,7 +224,8 @@ for kIdx = 1:length(clusterRange)
 end
 
 % Convert to user-friendly tables (columns labeled by k)
-varNamesByK = matlab.lang.makeValidName("Nclusters_" + string(clusterRange));
+rawNames = strcat('Nclusters_', cellstr(num2str(clusterRange(:))));
+varNamesByK = matlab.lang.makeValidName(rawNames);
 S_GRAD.idx              = array2table(clusterAssignmentsAll(2:end,:), 'VariableNames', varNamesByK);
 S_GRAD.SUM              = array2table(withinClusterSums(:,2)', 'VariableNames', varNamesByK);
 S_GRAD.Centroids        = cell2table(clusterCentroidsAll, 'VariableNames', varNamesByK);
@@ -525,3 +526,4 @@ function opts = parse_name_value_pairs(opts, varargin)
 end
 
 end
+

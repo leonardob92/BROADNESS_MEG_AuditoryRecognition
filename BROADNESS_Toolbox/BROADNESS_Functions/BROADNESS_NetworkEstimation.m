@@ -120,7 +120,7 @@ end
     
 % If duration is empty, use full data duration
 if isempty(opts.time_window)
-    disp("Duration not provided.. using full data duration");
+    disp('Duration not provided.. using full data duration');
     idx_start = 1;
     idx_end = size(data,2);
 else
