@@ -7,9 +7,9 @@ function BROADNESS_Startup(path_home)
 %
 %  Please cite the first BROADNESS paper:
 %  Bonetti, L., Fernandez-Rubio, G., Andersen, M. H., Malvaso, C., Carlomagno,
-%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2024).
-%  BROADband brain Network Estimation via Source Separation (BROAD-NESS). bioRxiv, 2024-10.
-%  https://doi.org/10.1101/2024.10.31.621257
+%  F., Testa, C., Vuust, P, Kringelbach, M.L., & Rosso, M. (2025). Advanced Science. 
+%  BROAD-NESS Uncovers Dual-Stream Mechanisms Underlying Predictive Coding in Auditory Memory Networks.
+%  https://doi.org/10.1002/advs.202507878
 %
 % ========================================================================
 %
