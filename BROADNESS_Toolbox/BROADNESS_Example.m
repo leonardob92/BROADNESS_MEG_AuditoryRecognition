@@ -177,6 +177,12 @@ sign_eigenvect = '0';
 
 BROADNESS = BROADNESS_NetworkEstimation(DATA, time, ...
                                 'time_window', time_window, 'permutations_num', permutations_num, 'randomization', randomization, 'sign_eigenvect', sign_eigenvect); %% Call with optional parameters
+%%
+
+%% 1)-extension: Effective Dimensionality (ED)
+
+eigenspectrum = BROADNESS.Variance_BrainNetworks;
+ED = BROADNESS_EffectiveDimensionality(eigenspectrum);
 
 %%
 
