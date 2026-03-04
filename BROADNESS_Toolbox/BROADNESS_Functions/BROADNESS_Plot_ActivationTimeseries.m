@@ -53,6 +53,9 @@ function BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
 %    'SignificanceLinePosition' : 'above' (default) or 'below'
 %    'SignificanceLineOffset'   : Distance from data to line (default = 0.01)
 %    'SignificanceLinePadding'  : Space between line and plot frame (default = 0.05)
+%    'SignificanceLineLevels'   : Number of line levels to reserve vertical space for.
+%                                 (default = [], uses the number of provided
+%                                 significance levels.)
 %    'YLimits'                  : Manual y-axis limits [min max]
 %    'XLimits'                  : Manual x-axis limits [min max]
 %    'STEStyle'                 : 1 = dotted SE, 2 = shaded SE (default = 2)
@@ -109,6 +112,7 @@ function BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
 %     'SignificanceStyle', 'line', ...
 %     'SignificanceLineOffset', 0.03, ...
 %     'SignificanceLinePadding', 0.05, ...
+%     'SignificanceLineLevels', 3, ...
 %     'SignificanceLinePosition', 'above', ...
 %     'STEStyle', 2, ...
 %     'Transparency', 0.2, ...
@@ -141,6 +145,7 @@ opts = struct( ...
     'SignificanceLinePosition', 'above', ...
     'SignificanceLineOffset', 0.01, ...
     'SignificanceLinePadding', 0.05, ...
+    'SignificanceLineLevels', [], ...
     'YLimits', [], ...
     'XLimits', [], ...
     'STEStyle', 2, ...
@@ -375,52 +380,50 @@ for net = 1:nNet
         ylim(ylims);
     end
     
+    sigWinGroups = opts.SignificantWindows;
+    nLevels = numel(sigWinGroups);
+
+    if strcmpi(opts.SignificanceStyle, 'line')
+        reservedLevels = opts.SignificanceLineLevels;
+        if isempty(reservedLevels)
+            reservedLevels = nLevels;
+        else
+            reservedLevels = max(reservedLevels, nLevels);
+        end
+
+        if reservedLevels > 0
+            y_range = diff(ylims);
+            offset = opts.SignificanceLineOffset * y_range;
+            padding = opts.SignificanceLinePadding * y_range;
+            line_spacing = offset;
+            
+            % Total height to fit all stacked levels
+            total_height = (reservedLevels - 1) * line_spacing + padding;
+            
+            switch lower(opts.SignificanceLinePosition)
+                case 'above'
+                    base_y = ylims(2) + offset;
+                    new_ylim = [ylims(1), base_y + total_height];
+                case 'below'
+                    base_y = ylims(1) - offset;
+                    new_ylim = [base_y - total_height, ylims(2)];
+                otherwise
+                    warning('Invalid SignificanceLinePosition. Defaulting to "above".');
+                    base_y = ylims(2) + offset;
+                    new_ylim = [ylims(1), base_y + total_height];
+            end
+            
+            ylim(new_ylim);  % Expand Y-limits
+        end
+    end
+
     % Add significance markings (grouped by Y-levels, same color per level)
-    if ~isempty(opts.SignificantWindows)
-        sigWinGroups = opts.SignificantWindows;
-        
-        if ~iscell(sigWinGroups) || ~iscell(sigWinGroups{1})
-            error('"SignificantWindows" must be a nested cell array: each row = one Y-level.');
-        end
-        
-        nLevels = length(sigWinGroups);
-        
-        y_range = diff(ylims);
-        offset = opts.SignificanceLineOffset * y_range;
-        padding = opts.SignificanceLinePadding * y_range;
-        line_spacing = offset;
-        
-        % Total height to fit all stacked levels
-        total_height = (nLevels - 1) * line_spacing + padding;
-        
-        switch lower(opts.SignificanceLinePosition)
-            case 'above'
-                base_y = ylims(2) + offset;
-                new_ylim = [ylims(1), base_y + total_height];
-            case 'below'
-                base_y = ylims(1) - offset;
-                new_ylim = [base_y - total_height, ylims(2)];
-            otherwise
-                warning('Invalid SignificanceLinePosition. Defaulting to "above".');
-                base_y = ylims(2) + offset;
-                new_ylim = [ylims(1), base_y + total_height];
-        end
-        
-        ylim(new_ylim);  % Expand Y-limits
-        
+    if nLevels > 0
         % Plot each level of significance windows
         for level = 1:nLevels
             levelWins = sigWinGroups{level};
             if ~iscell(levelWins)
                 error('Each level in "SignificantWindows" must be a cell array of [start end] pairs.');
-            end
-            
-            % Determine Y-coordinate for this level
-            switch lower(opts.SignificanceLinePosition)
-                case 'above'
-                    y_sig = base_y + (level - 1) * line_spacing;
-                case 'below'
-                    y_sig = base_y - (level - 1) * line_spacing;
             end
             
             % Use same color for all lines at this level
@@ -438,6 +441,12 @@ for net = 1:nNet
                         patch([win(1) win(2) win(2) win(1)], [-1e5 -1e5 1e5 1e5], col, ...
                             'EdgeColor','none','FaceAlpha',0.2, 'HandleVisibility','off');
                     case 'line'
+                        switch lower(opts.SignificanceLinePosition)
+                            case 'above'
+                                y_sig = base_y + (level - 1) * line_spacing;
+                            case 'below'
+                                y_sig = base_y - (level - 1) * line_spacing;
+                        end
                         line([win(1) win(2)], [y_sig y_sig], 'Color', col, 'LineWidth', 2, 'HandleVisibility','off');
                     otherwise
                         warning('Unknown SignificanceStyle. Using patch.');
@@ -485,5 +494,3 @@ for i = 1:2:length(varargin)
     end
 end
 end
-
-
