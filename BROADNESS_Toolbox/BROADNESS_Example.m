@@ -17,21 +17,17 @@
 %  brain voxel (sources) x time x experimental conditions (already averaged across trials) x participants
 %  The dataset is available at the following link:
 %  https://zenodo.org/records/17048137
-%  To follow the suggested workflow with example data, please donwload
-%  "Dataset_1_IndividualParticipants.zip" and "Dataset_2_IndividualParticipants.zip"
-%  for the MEG data for each participant and "DataReduced_AveragedOverParticipants_Example.mat"
-%  for the time in seconds.
+%  Place one MAT file per participant in the "data" folder next to
+%  "BROADNESS_Toolbox". To analyse data already averaged across
+%  participants, place only the single averaged MAT file in that folder.
 %
 %  PLEASE NOTE
 %  The current BROADNESS pipeline takes as input a single 4D matrix that
-%  includes all individual participants’ data, computes the group average
+%  includes all individual participants' data, computes the group average
 %  for network estimation (using PCA or ICA), and then outputs the corresponding
 %  time series for each participant for statistical analysis.
 %  The spatial activation patterns of the networks is instead provided for
 %  the group level.
-%  Note that if you wish to only have a quick computation on the data averaged across
-%  participants, you can use the data averaged across participants available
-%  in "DataReduced_AveragedOverParticipants_Example.mat".
 %
 %
 % ========================================================================
@@ -95,8 +91,11 @@ clear
 close all
 clc
 
-% Setup directories
-path_home = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox';
+% Setup directories relative to this example script
+path_home = fileparts(mfilename('fullpath'));
+project_path = fileparts(path_home);
+data_path = fullfile(project_path, 'data');
+output_path = project_path;
 addpath(path_home)
 BROADNESS_Startup(path_home);
 
@@ -106,27 +105,9 @@ BROADNESS_Startup(path_home);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-%%% Here, you need to load the data stored in:
-% "Dataset_1_IndividualParticipants.zip" and
-% "Dataset_2_IndividualParticipants.zip"
-% You should also concatenate such data, following the example below.
-% Please, note that if you do not have enough memory of your computer,
-% you can limit the analysis to a subset of participants if you are only
-% practicising with the toolbox.
-list_participants = dir('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/Dataset_1_IndividualParticipants/*.mat');
-disp(['loading participant 1 / ' num2str(length(list_participants))])
-load([list_participants(1).folder '/' list_participants(1).name]);
-SS = size(Data);
-DATA = zeros(SS(1),776,SS(3),length(list_participants)); %preallocating space for all data
-DATA(:,:,:,1) = Data(:,1:776,:); %storing data for participant 1
-for ii = 2:length(list_participants) %over participants
-    disp(['loading participant ' num2str(ii) ' / ' num2str(length(list_participants))])
-    load([list_participants(ii).folder '/' list_participants(ii).name]); %loading data for participant ii
-    DATA(:,:,:,ii) = Data(:,1:776,:); %storing data progressively for each participant
-end
-% Also, remember to load time from the file named:
-% "DataReduced_AveragedOverParticipants_Example.mat"
-load('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/DataReduced_AveragedOverParticipants_Example.mat','time');
+%%% Load all MAT files from the local "data" folder. Each file is treated
+% as one participant; a single file can contain already averaged data.
+[DATA, time] = load_broadness_example_data(data_path);
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
@@ -145,33 +126,15 @@ BROADNESS = BROADNESS_NetworkEstimation(DATA, time);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-%%% Here, you need to load the data stored in:
-% "Dataset_1_IndividualParticipants.zip" and
-% "Dataset_2_IndividualParticipants.zip"
-% You should also concatenate such data, following the example below.
-% Please, note that if you do not have enough memory of your computer, for now
-% you can limit the analysis to a subset of participants.
-list_participants = dir('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/Dataset_1_IndividualParticipants/*.mat');
-disp(['loading participant 1 / ' num2str(length(list_participants))])
-load([list_participants(1).folder '/' list_participants(1).name]);
-SS = size(Data);
-DATA = zeros(SS(1),776,SS(3),length(list_participants)); %preallocating space for all data
-DATA(:,:,:,1) = Data(:,1:776,:); %storing data for participant 1
-for ii = 2:length(list_participants) %over participants
-    disp(['loading participant ' num2str(ii) ' / ' num2str(length(list_participants))])
-    load([list_participants(ii).folder '/' list_participants(ii).name]); %loading data for participant ii
-    DATA(:,:,:,ii) = Data(:,1:776,:); %storing data progressively for each participant
-end
-
-% Also, remember to load time from the file named:
-% "DataReduced_AveragedOverParticipants_Example.mat"
-load('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/DataReduced_AveragedOverParticipants_Example.mat','time');
+%%% Load all MAT files from the local "data" folder. Each file is treated
+% as one participant; a single file can contain already averaged data.
+[DATA, time] = load_broadness_example_data(data_path);
 
 % Optional arguments
 time_window = [0.350 1.750];
 permutations_num = 10;
 randomization = 1;
-sign_eigenvect = '0';
+sign_eigenvect = 'max_abs';
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
@@ -200,8 +163,8 @@ ED = BROADNESS_EffectiveDimensionality(eigenspectrum);
 
 % Minimal user settings: output folder and MNI coordinates of original brain voxel data
 Options = [];
-Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
-load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
+Options.name_nii = output_path; %output folder
+load(fullfile(path_home, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
 
 %%% ------------------ COMPUTATION --------------------- %%%
@@ -222,8 +185,8 @@ BROADNESS_Visualizer(BROADNESS,Options)
 
 % Minimal user settings: output folder
 Options = [];
-Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
-load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
+Options.name_nii = output_path; %output folder
+load(fullfile(path_home, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
 Options.WhichPlots = [0 0 0 0 1]; %which plots to be generated
 Options.ncomps = [1 2]; %indices of PCs to be plotted (all plots)
@@ -254,7 +217,7 @@ Options.color_conds = [
 % NOTE: This removal works only for 8mm brain
 remove_cerebellum_label = 0;
 if remove_cerebellum_label == 1
-    load([path_home '/BROADNESS_External/cerebellum_coords.mat']); %only cerebellar voxels
+    load(fullfile(path_home, 'BROADNESS_External', 'cerebellum_coords.mat')); %only cerebellar voxels
     % Remove cerebellar voxels since they are not included in the 3D brain template (#4)
     [~, idx_cerebellum] = ismember(MNI8, cerebellum_coords, 'rows');  % find cerebellum indexes in MNI coordinates matrix (all voxels)
     MNI8(idx_cerebellum~=0,:) = nan; %assigning nans to MNI coordinates matrix
@@ -292,7 +255,7 @@ RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'thres
 % Simply use the structure outputted by the BROADNESS_NetworkEstimation function
 % Additional optional inputs can be provided, as described in the function. 
 
-load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
+load(fullfile(path_home, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
 
 %%% ------------------ COMPUTATION --------------------- %%%
@@ -307,22 +270,9 @@ SPATIAL_GRADIENTS_BROADNESS = BROADNESS_SpatialGradients(BROADNESS,'principalcom
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-%%% As for the PCA approach, here you need to load the data stored in:
-% "Dataset_1_IndividualParticipants.zip" and
-% "Dataset_2_IndividualParticipants.zip"
-% You should also concatenate such data, following the example below.
-% Please, note that if you do not have enough memory of your computer, for now
-% you can limit the analysis to a subset of participants.
-list_participants = dir('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/Dataset_1_IndividualParticipants/*.mat');
-DATA = [];
-for ii = 1:length(list_participants)
-    load([list_participants(ii).folder '/' list_participants(ii).name]);
-    DATA = cat(4,DATA,Data(:,1:776,:));
-    disp(['loading participant ' num2str(ii) ' / ' num2str(length(list_participants))])
-end
-% Also, remember to load time from the file named:
-% "DataReduced_AveragedOverParticipants_Example.mat"
-load('/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025/BROADNESS_Toolbox/DataReduced_AveragedOverParticipants_Example.mat','time');
+%%% As for the PCA approach, load all MAT files from the local "data"
+% folder, or keep only one file there when using already averaged data.
+[DATA, time] = load_broadness_example_data(data_path);
 % Additional optional inputs can be provided, as described in the function. 
 
 %%% ------------------ COMPUTATION --------------------- %%%
@@ -344,8 +294,8 @@ BROADNESS_ICA = BROADNESS_AlternativeNetworkEstimation_ICA(DATA, time, 'icacomps
 
 % Minimal user settings: output folder
 Options = [];
-Options.name_nii = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025'; %output folder
-load([path_home '/BROADNESS_External/MNI152_8mm_coord_dyi.mat']); %all voxels MNI coordinates
+Options.name_nii = output_path; %output folder
+load(fullfile(path_home, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
 Options.WhichPlots = [0 0 0 0 0]; %which plots to be generated
 % Options.ncomps = [1:10]; %indices of PCs to be plotted (all plots)
@@ -355,8 +305,6 @@ Options.Labels = {'Memorized','NewT1','NewT2','NewT3','NewT4'}; %experimental co
 
 % Visualize brain networks features
 BROADNESS_Visualizer(BROADNESS_ICA,Options)
-
-%%
 
 %%
 
@@ -379,3 +327,38 @@ BROADNESS_Visualizer(BROADNESS_ICA,Options)
 %  https://doi.org/10.1002/advs.202507878
 
 %%
+
+function [DATA, time] = load_broadness_example_data(data_path)
+% Load each MAT file as one participant along the fourth dimension.
+
+data_files = dir(fullfile(data_path, '*.mat'));
+if isempty(data_files)
+    error('No MAT files were found in the data folder: %s', data_path)
+end
+
+DATA = [];
+time = [];
+for ii = 1:length(data_files)
+    file_path = fullfile(data_files(ii).folder, data_files(ii).name);
+    loaded_file = load(file_path);
+    if isfield(loaded_file, 'Data')
+        participant_data = loaded_file.Data;
+    elseif isfield(loaded_file, 'data')
+        participant_data = loaded_file.data;
+    else
+        error('The file "%s" must contain a matrix named "Data" or "data".', data_files(ii).name)
+    end
+    if ii == 1
+        DATA = participant_data;
+    else
+        DATA = cat(4, DATA, participant_data);
+    end
+    if isfield(loaded_file, 'time')
+        time = loaded_file.time;
+    end
+    disp(['loading participant ' num2str(ii) ' / ' num2str(length(data_files))])
+end
+if isempty(time)
+    error('The data files must contain a time vector named "time".')
+end
+end

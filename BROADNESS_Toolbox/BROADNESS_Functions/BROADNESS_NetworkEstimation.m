@@ -103,6 +103,14 @@ randomization = opts.randomization;
 sign_eigenvect = opts.sign_eigenvect;
 
 % Checking inputs
+if isstring(sign_eigenvect) && isscalar(sign_eigenvect)
+    sign_eigenvect = char(sign_eigenvect);
+end
+valid_sign_options = {'occurrences', 'max_abs', 'average'};
+if ~ischar(sign_eigenvect) || ~isrow(sign_eigenvect) || ~any(strcmpi(sign_eigenvect, valid_sign_options))
+    error('"sign_eigenvect" must be ''occurrences'', ''max_abs'', or ''average''.')
+end
+sign_eigenvect = lower(sign_eigenvect);
 if randomization < 1 || randomization > 3
     error('Randomization must be between 1 and 3')
 end
