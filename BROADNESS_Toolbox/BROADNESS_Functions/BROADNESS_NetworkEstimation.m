@@ -154,7 +154,7 @@ if exist('pca', 'file') == 2
 else
     % Fallback if PCA function is not available
     disp('pca() not found — using custom PCA implementation...');
-    data_demeaned = bsxfun(@minus,averaged_data,mean(averaged_data)); %demeaning of the data
+    data_demeaned = bsxfun(@minus,averaged_data,mean(averaged_data,2)); %demeaning across time for each brain source
     data_covariance = cov(data_demeaned'); %covariance matrix (note that data_demeaned is transposed, so time-points x brain sources)
     [activation_patterns,eigenvalues] = eig(data_covariance); %eigenvector solution
     [eigenvalues,sidx]  = sort( diag(eigenvalues),'descend' ); % the first output returns sorted evals extracted from diagonal
@@ -195,7 +195,7 @@ if permutations_num > 0 %if MCS was requested
             [~,~,~,~,variance_randomized] = pca(data_reshaped'); %PCA on randomized data
         else
             % Fallback if PCA function is not available
-            data_demeaned_r = bsxfun(@minus,data_reshaped,mean(data_reshaped)); %demeaning of the data
+            data_demeaned_r = bsxfun(@minus,data_reshaped,mean(data_reshaped,2)); %demeaning across time for each brain source
             data_covariance_r = cov(data_demeaned_r'); %covariance matrix (note that data_demeaned is transposed, so time-points x brain sources)
             [~,eigenvalues_r] = eig(data_covariance_r); %eigenvector solution
             [eigenvalues_r,sidx_r]  = sort( diag(eigenvalues_r),'descend' ); % the first output returns sorted evals extracted from diagonal
