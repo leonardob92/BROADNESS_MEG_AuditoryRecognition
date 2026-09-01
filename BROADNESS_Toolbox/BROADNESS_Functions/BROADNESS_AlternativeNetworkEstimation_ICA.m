@@ -88,7 +88,7 @@ function [BROADNESS_ICA] = BROADNESS_AlternativeNetworkEstimation_ICA(data, time
 %% ----------------------------- Handle inputs -----------------------------
 disp('Checking inputs')
 
-opts = struct('total_varexp', 0.95, 'icacomps', []);
+opts = struct('total_varexp', 95, 'icacomps', []);
 opts = parse_name_value_pairs(opts, varargin{:});
 total_varexp = opts.total_varexp;
 icacomps     = opts.icacomps;
@@ -109,13 +109,12 @@ end
 
 %% ------------------------- Preprocess data ------------------------------
 
-% Average across conditions if 3D
+% Store original data before averaging across participants and conditions
+data_temp = data; % store the original data
 if ndims(data) == 4
-    data_temp = data; % store the data
     data = mean(data, 4); % average across participants
     data = mean(data, 3); % average across conditions
 elseif ndims(data) == 3
-    data_temp = data; % same data stored with a different name for avoiding issues later (barbaric yet effective solution)
     data = mean(data, 3); % average across conditions
 end
 
