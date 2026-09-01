@@ -138,11 +138,12 @@ end
 disp('Computing PCA')
 
 if non_singleton_dims == 4 %if data is provided for several independent participants
-    data_temp = data; %store the data
-    data = mean(data,4); %average it across participants
+    data_temp = data(:,idx_start:idx_end,:,:); %store the data within the time-window of interest
+    data = mean(data_temp,4); %average it across participants
+else
+    data = data(:,idx_start:idx_end,:); %extracting time-window of interest
 end
 
-data = data(:,idx_start:idx_end,:); %extracting time-window of interest
 time = time(idx_start:idx_end); %same for time vector in seconds
 averaged_data = mean(data(:,:,:),3); %average across 3rd dimension (e.g. experimental conditions)
 
@@ -265,7 +266,7 @@ else
         for parti = 1:size(data_temp,4) %over participants
             disp(['Computing time series for participant ' num2str(parti) ' / ' num2str(size(data_temp,4))])
             for condi = 1:size(data,3) %over experimental conditions (or whatever the user has in the 3rd dimension of the data matrix)
-                TimeSeries(:,:,condi,parti) = data_temp(:,1:length(time),condi,parti)' * activation_patterns(:,PCs); %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each voxel activation by its corresponding load
+                TimeSeries(:,:,condi,parti) = data_temp(:,:,condi,parti)' * activation_patterns(:,PCs); %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each voxel activation by its corresponding load
             end
         end
     else
