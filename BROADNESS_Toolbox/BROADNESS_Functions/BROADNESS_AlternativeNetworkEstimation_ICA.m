@@ -55,7 +55,8 @@ function [BROADNESS_ICA] = BROADNESS_AlternativeNetworkEstimation_ICA(data, time
 %
 % -------------------------------------------------------------------------
 %  OUTPUT (BROADNESS_ICA struct):
-%    .TimeSeries_BrainNetworks      : IC time courses (IC × time × cond)
+%    .TimeSeries_BrainNetworks      : IC time courses
+%                                     (time × IC × [conditions] × [participants])
 %    .ActivationPatterns_BrainNetworks : Spatial activation patterns
 %                                        (voxels × IC). Computed as
 %                                        (unmixing weights) * Cov(data), transposed.
@@ -155,16 +156,16 @@ else % several conditions
     conds = size(data_temp,3);
 end
 if ndims(data_temp) == 4 %single participants
-    icScores = zeros(m, size(data_temp,2), conds, size(data_temp,4));
+    icScores = zeros(size(data_temp,2), m, conds, size(data_temp,4));
     for parti = 1:size(data_temp,4) %over participants
         for ii = 1:conds %over conditions
-            icScores(:,:,ii,parti) = iVecs * data_temp(:,:,ii,parti);
+            icScores(:,:,ii,parti) = (iVecs * data_temp(:,:,ii,parti))';
         end
     end
 else % provided several conditions but average across participants
-    icScores = zeros(m, size(data_temp,2), conds);
+    icScores = zeros(size(data_temp,2), m, conds);
     for ii = 1:conds
-        icScores(:,:,ii) = iVecs * data_temp(:,:,ii);
+        icScores(:,:,ii) = (iVecs * data_temp(:,:,ii))';
     end
 end
 

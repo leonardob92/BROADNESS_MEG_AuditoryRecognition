@@ -118,10 +118,9 @@ if isfield(BROADNESS, 'Time')
 else
     error('Invalid input structure: field "Time" is required.');
 end
-% if ~(ismatrix(TimeSeries) || ndims(TimeSeries) == 3)
-%     error(['"TimeSeries_BrainNetworks" must be 2D or 3D (time × components × [conditions]) ', ...
-%            'or (components × time × [conditions]).']);
-% end
+if size(TimeSeries,1) ~= numel(time)
+    error('The first dimension of "TimeSeries_BrainNetworks" must match the length of "Time".');
+end
 
 % --- Validate optional args ---
 if ~(isnumeric(PCs) && isvector(PCs))
@@ -160,15 +159,8 @@ timemin = find(time >= time_seconds(1), 1, 'first');
 timemax = find(time <= time_seconds(2), 1, 'last');
 reduced_time_idx = timemin:timemax;
 
-isPCA = isfield(BROADNESS, 'Variance_BrainNetworks');  % PCA outputs variance field; ICA doesn't
-
-if isPCA && length(reduced_time_idx) > size(TimeSeries,1)
-    reduced_time_idx = reduced_time_idx(1:end-1); %adjusting potential mismatch of one timepoint between PCA time series and time..
-    time = time(1:end-1);
-end
-    
-if ~isPCA %reshaping matrix of time series if ICA
-    TimeSeries = permute(TimeSeries,[2 1 3 4]); % 4th dimension if the time series were computed for each participant; this works even if the time series matrix is only 3D
+if any(PCs < 1) || any(PCs > size(TimeSeries,2)) || any(fix(PCs) ~= PCs)
+    error('"principalcomps" contains indices outside the available brain networks.');
 end
 
 %% ------------------- Compute phase space coordinates --------------------

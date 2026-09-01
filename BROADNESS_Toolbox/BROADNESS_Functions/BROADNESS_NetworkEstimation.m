@@ -66,6 +66,7 @@ function [BROADNESS] = BROADNESS_NetworkEstimation(data, time, varargin)
 %                   1. spatial activation patterns (eigenvectors)
 %                   2. variance explained (eigenvalues) - original data
 %                   3. brain network time series
+%                      (time × components × [conditions] × [participants])
 %                   4. number of significant brain networks after MCS
 %                   5. variance explained (eigenvalues) - permuted data (only if MCS was computed) 
 %                   6. time (carried out for future plotting purposes) 

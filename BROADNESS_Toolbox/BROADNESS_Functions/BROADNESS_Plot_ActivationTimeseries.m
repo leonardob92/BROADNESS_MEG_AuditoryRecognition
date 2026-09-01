@@ -24,12 +24,14 @@ function BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
 %    - horizontal lines placed above or below the plotted data
 %
 %  Suitable for data in the BROADNESS toolbox format or any 4D matrix with:
-%     [networks x time x subjects x conditions]
+%     [time x networks x conditions x participants]
+%  The former [networks x time x participants x conditions] format is also
+%  accepted for backwards compatibility.
 %
 %  ------------------------------------------------------------------------
 %  REQUIRED INPUTS:
 %  ------------------------------------------------------------------------
-%    data  : 4D matrix [networks x time x subjects x conditions]
+%    data  : 4D matrix [time x networks x conditions x participants]
 %    time  : Vector of time points (in seconds)
 %
 %  ------------------------------------------------------------------------
@@ -154,24 +156,27 @@ opts = parse_name_value_pairs(opts, varargin{:});
 % STEP 2: Validate inputs
 % ----------------------------
 
-% Ensure 'data' is a 4D numeric array
+% Ensure 'data' is a numeric array using the canonical time-first format
 if ~isnumeric(data)
-    error('Input "data" must be a numeric array: [networks x time x subjects x conditions].');
+    error('Input "data" must be a numeric array.');
 end
-[nNet, nTime, nSubj, nConds] = size(data);  % Extract dimensions
+
+if ~isnumeric(time) || ~isvector(time)
+    error('Input "time" must be a numeric vector.');
+end
+if size(data,1) == numel(time)
+    [nTime, nNet, nConds, nSubj] = size(data);
+elseif size(data,2) == numel(time)
+    data = permute(data, [2 1 4 3]); %support former networks × time × participants × conditions format
+    [nTime, nNet, nConds, nSubj] = size(data);
+else
+    error('Length of "time" must match the first dimension of "data".');
+end
 
 % Warn if too many NaNs
 nanRatio = sum(isnan(data(:))) / numel(data);
 if nanRatio > 0.05
     warning('Data contains %.1f%% NaN values.', nanRatio * 100);
-end
-
-% Ensure 'time' is a numeric vector matching the time dimension
-if ~isnumeric(time) || ~isvector(time)
-    error('Input "time" must be a numeric vector.');
-end
-if length(time) ~= nTime
-    error('Length of "time" must match the second dimension of "data".');
 end
 
 % Validate 'Groups' if provided
@@ -333,7 +338,7 @@ for net = 1:nNet
     for c = 1:nConds
         for g = 1:nGroups
             subj_idx = opts.Groups{g};  % Subjects in this group
-            netdata = squeeze(data(net,:,subj_idx,c));  % time x subjects matrix
+            netdata = reshape(data(:,net,c,subj_idx), nTime, length(subj_idx)); % time x subjects matrix
             mean_ts = mean(netdata, 2, 'omitnan');       % Mean across subjects
             ste_ts = std(netdata, 0, 2, 'omitnan') ./ sqrt(size(netdata,2));  % Standard Error
             
@@ -485,5 +490,4 @@ for i = 1:2:length(varargin)
     end
 end
 end
-
 
