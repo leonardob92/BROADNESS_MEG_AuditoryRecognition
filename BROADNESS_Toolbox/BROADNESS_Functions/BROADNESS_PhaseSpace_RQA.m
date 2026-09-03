@@ -48,6 +48,9 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %      - 'principalcomps'               : Vector of PC indices to use in phase space (default: 1:10)
 %      - 'timeinterval'                 : [start_time end_time] in seconds for analysis (default: full range)
 %      - 'threshold'                    : Fraction of max distance to define recurrences (default: 0.1)
+%      - 'theiler_window'               : Theiler window in samples. Use 0 to exclude only the main diagonal,
+%                                         or a positive integer to exclude a wider diagonal band.
+%                                         Default: [] (disabled; main diagonal retained)
 %      - 'video'                        : 'on' or 'off' to show animated phase space plot (default: 'off')
 %      - 'figure'                       : 'on' or 'off' to show the figures (default: 'off')
 %
@@ -97,13 +100,15 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 disp('Checking inputs')
 
 % Defaults
-opts = struct('principalcomps', 1:2, 'timeinterval', [], 'threshold', 0.1, 'video', 'off','figure','off');
+opts = struct('principalcomps', 1:2, 'timeinterval', [], 'threshold', 0.1, ...
+    'theiler_window', [], 'video', 'off','figure','off');
 opts = parse_name_value_pairs(opts, varargin{:});
 
 % Assign to readable internal names
 PCs          = opts.principalcomps;
 time_seconds = opts.timeinterval;
 eps          = opts.threshold;
+theiler_window = opts.theiler_window;
 video        = opts.video;
 figurel      = opts.figure;
 
@@ -118,10 +123,9 @@ if isfield(BROADNESS, 'Time')
 else
     error('Invalid input structure: field "Time" is required.');
 end
-% if ~(ismatrix(TimeSeries) || ndims(TimeSeries) == 3)
-%     error(['"TimeSeries_BrainNetworks" must be 2D or 3D (time × components × [conditions]) ', ...
-%            'or (components × time × [conditions]).']);
-% end
+if size(TimeSeries,1) ~= numel(time)
+    error('The first dimension of "TimeSeries_BrainNetworks" must match the length of "Time".');
+end
 
 % --- Validate optional args ---
 if ~(isnumeric(PCs) && isvector(PCs))
@@ -129,6 +133,10 @@ if ~(isnumeric(PCs) && isvector(PCs))
 end
 if ~isnumeric(eps) || ~isscalar(eps) || ~isfinite(eps)
     error('"threshold" must be a finite numeric scalar.');
+end
+if ~isempty(theiler_window) && (~isnumeric(theiler_window) || ~isscalar(theiler_window) || ...
+        ~isfinite(theiler_window) || theiler_window < 0 || fix(theiler_window) ~= theiler_window)
+    error('"theiler_window" must be empty or a nonnegative integer number of samples.');
 end
 if ~(ischar(video) || isstring(video)) || ~ismember(lower(string(video)), ["on","off"])
     error('"video" must be ''on'' or ''off''.');
@@ -160,15 +168,16 @@ timemin = find(time >= time_seconds(1), 1, 'first');
 timemax = find(time <= time_seconds(2), 1, 'last');
 reduced_time_idx = timemin:timemax;
 
-isPCA = isfield(BROADNESS, 'Variance_BrainNetworks');  % PCA outputs variance field; ICA doesn't
-
-if isPCA && length(reduced_time_idx) > size(TimeSeries,1)
-    reduced_time_idx = reduced_time_idx(1:end-1); %adjusting potential mismatch of one timepoint between PCA time series and time..
-    time = time(1:end-1);
+if ~isempty(theiler_window)
+    if theiler_window >= length(reduced_time_idx)-1
+        error('"theiler_window" must leave at least one pair of eligible time-points.');
+    end
+    time_indices = 1:length(reduced_time_idx);
+    theiler_mask = abs(time_indices.'-time_indices) > theiler_window;
 end
-    
-if ~isPCA %reshaping matrix of time series if ICA
-    TimeSeries = permute(TimeSeries,[2 1 3 4]); % 4th dimension if the time series were computed for each participant; this works even if the time series matrix is only 3D
+
+if any(PCs < 1) || any(PCs > size(TimeSeries,2)) || any(fix(PCs) ~= PCs)
+    error('"principalcomps" contains indices outside the available brain networks.');
 end
 
 %% ------------------- Compute phase space coordinates --------------------
@@ -311,6 +320,9 @@ for cc = 1:size(phase_space,1) %over conditions
         end
     end
    RP_thresh_temp(RP_temp<max(RP_temp(:))*eps) = 1; %recurrent values
+   if ~isempty(theiler_window)
+       RP_thresh_temp(~theiler_mask) = 0; %exclude temporally adjacent recurrence points
+   end
    DM{cc} = RP_temp;
    RP{cc} = RP_thresh_temp;
 %    clear RP_temp
@@ -467,6 +479,9 @@ for part = 1:nPart
             end
         end
         RP_thresh_temp_p(RP_temp_p < max(RP_temp_p(:)) * eps) = 1;
+        if ~isempty(theiler_window)
+            RP_thresh_temp_p(~theiler_mask) = 0; %exclude temporally adjacent recurrence points
+        end
 
         RP_participants{cc, part}        = RP_temp_p;
         RP_thresh_participants{cc, part} = RP_thresh_temp_p;
@@ -482,12 +497,17 @@ for part = 1:nPart
         RPth = RP_thresh_participants{cc, part};
 
         %%%%% RECURRENCE RATE (RR)
-        metrics_p(cc,1) = sum(RPth(:)) / numel(RPth);
+        if isempty(theiler_window)
+            metrics_p(cc,1) = sum(RPth(:)) / numel(RPth);
+        else
+            metrics_p(cc,1) = sum(RPth(:)) / sum(theiler_mask(:));
+        end
 
         %%%%% mean diagonal line (L) + collect diagonals
         [~, Ldiags] = dl(RPth);
         Ldiags(Ldiags < lmin) = [];
         metrics_p(cc,2) = mean(Ldiags);
+        has_diagonal_lines = ~isempty(Ldiags);
 
         %%%%% Determinism (DET)
         if isempty(Ldiags)
@@ -523,11 +543,17 @@ for part = 1:nPart
         end
 
         %%%%% DIV (inverse of maximum diagonal length)
-        if numel(Ldiags) >= 2
-            Lmax = max(Ldiags(1:end-1));
-            metrics_p(cc,8) = 1 / Lmax;
-        elseif numel(Ldiags) == 1
-            metrics_p(cc,8) = 1 / Ldiags(1);
+        if isempty(theiler_window)
+            if numel(Ldiags) >= 2
+                Lmax = max(Ldiags(1:end-1));
+                metrics_p(cc,8) = 1 / Lmax;
+            elseif numel(Ldiags) == 1
+                metrics_p(cc,8) = 1 / Ldiags(1);
+            else
+                metrics_p(cc,8) = NaN;
+            end
+        elseif has_diagonal_lines
+            metrics_p(cc,8) = 1 / max(Ldiags);
         else
             metrics_p(cc,8) = NaN;
         end

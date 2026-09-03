@@ -47,7 +47,8 @@ function BROADNESS_Visualizer(BROADNESS, Options)
 %      - BROADNESS.Significant_BrainNetworks            : Significant brain networks according to Monte-Carlo simulations (MCS).   
 %      - BROADNESS.ActivationPatterns_BrainNetworks     : Spatial activation patterns used to generate NIFTI files and
 %                                                         the 3D brain plot.
-%      - BROADNESS.TimeSeries_BrainNetworks             : Time series of the brain networks (independently for each conditions and participants
+%      - BROADNESS.TimeSeries_BrainNetworks             : Time × components × conditions × participants matrix
+%                                                         (independently for each condition and participant
 %                                                         if original data was provided for each condition and participant).
 %                                                         Note that if data was provided for each participant,the time series plots show
 %                                                         mean across participants and standard errors.
@@ -131,6 +132,9 @@ data = BROADNESS.OriginalData;
 time = BROADNESS.Time;
 ActPat = BROADNESS.ActivationPatterns_BrainNetworks;
 TimeSeries = BROADNESS.TimeSeries_BrainNetworks;
+if size(TimeSeries,1) ~= numel(time)
+    error('The first dimension of "TimeSeries_BrainNetworks" must match the length of "Time".')
+end
 
 % Compute mean and standard deviation if data is provided for single participants
 sz = size(data);
@@ -182,11 +186,11 @@ elseif isPCA && isfield(BROADNESS,'Significant_BrainNetworks') && ~ischar(BROADN
     ncomps = BROADNESS.Significant_BrainNetworks;   % PCA + MCS
 else
     % Fallback for ICA or PCA without MCS: first up to 5 components
-%     ncomps = 1:min(5, size(ActPat,2));
-    ncomps = 1:5;%size(ActPat,2);
+    ncomps = 1:min(5, size(TimeSeries,2));
 end
-if length(ncomps) > size(TimeSeries,1)
-    ncomps = 1:size(TimeSeries,1);
+if ~isnumeric(ncomps) || ~isvector(ncomps) || any(ncomps < 1) || ...
+        any(ncomps > size(TimeSeries,2)) || any(fix(ncomps) ~= ncomps)
+    error('"Options.ncomps" contains indices outside the available brain networks.')
 end
 % if isfield(Options,'ncomps') %if components indices to be plotted are provided
 %     ncomps = Options.ncomps; %extracting them
@@ -295,13 +299,6 @@ end
 if Options.WhichPlots(3) == 1
     
     disp('Generating time series plots for brain networks...');
-    
-    if ~isPCA
-        TimeSeries = permute(TimeSeries,[2 1 3]);
-        if non_singleton_dims == 4 % data provided for single participants
-            TimeSeries_stde = permute(TimeSeries_stde,[2 1 3]);
-        end
-    end
     
     for compi = 1:length(ncomps) %over selected PCs
 

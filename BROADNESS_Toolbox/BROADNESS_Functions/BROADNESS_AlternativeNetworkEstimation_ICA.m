@@ -55,7 +55,8 @@ function [BROADNESS_ICA] = BROADNESS_AlternativeNetworkEstimation_ICA(data, time
 %
 % -------------------------------------------------------------------------
 %  OUTPUT (BROADNESS_ICA struct):
-%    .TimeSeries_BrainNetworks      : IC time courses (IC × time × cond)
+%    .TimeSeries_BrainNetworks      : IC time courses
+%                                     (time × IC × [conditions] × [participants])
 %    .ActivationPatterns_BrainNetworks : Spatial activation patterns
 %                                        (voxels × IC). Computed as
 %                                        (unmixing weights) * Cov(data), transposed.
@@ -88,7 +89,7 @@ function [BROADNESS_ICA] = BROADNESS_AlternativeNetworkEstimation_ICA(data, time
 %% ----------------------------- Handle inputs -----------------------------
 disp('Checking inputs')
 
-opts = struct('total_varexp', 0.95, 'icacomps', []);
+opts = struct('total_varexp', 95, 'icacomps', []);
 opts = parse_name_value_pairs(opts, varargin{:});
 total_varexp = opts.total_varexp;
 icacomps     = opts.icacomps;
@@ -109,13 +110,12 @@ end
 
 %% ------------------------- Preprocess data ------------------------------
 
-% Average across conditions if 3D
+% Store original data before averaging across participants and conditions
+data_temp = data; % store the original data
 if ndims(data) == 4
-    data_temp = data; % store the data
     data = mean(data, 4); % average across participants
     data = mean(data, 3); % average across conditions
 elseif ndims(data) == 3
-    data_temp = data; % same data stored with a different name for avoiding issues later (barbaric yet effective solution)
     data = mean(data, 3); % average across conditions
 end
 
@@ -156,16 +156,16 @@ else % several conditions
     conds = size(data_temp,3);
 end
 if ndims(data_temp) == 4 %single participants
-    icScores = zeros(m, size(data_temp,2), conds, size(data_temp,4));
+    icScores = zeros(size(data_temp,2), m, conds, size(data_temp,4));
     for parti = 1:size(data_temp,4) %over participants
         for ii = 1:conds %over conditions
-            icScores(:,:,ii,parti) = iVecs * data_temp(:,:,ii,parti);
+            icScores(:,:,ii,parti) = (iVecs * data_temp(:,:,ii,parti))';
         end
     end
 else % provided several conditions but average across participants
-    icScores = zeros(m, size(data_temp,2), conds);
+    icScores = zeros(size(data_temp,2), m, conds);
     for ii = 1:conds
-        icScores(:,:,ii) = iVecs * data_temp(:,:,ii);
+        icScores(:,:,ii) = (iVecs * data_temp(:,:,ii))';
     end
 end
 

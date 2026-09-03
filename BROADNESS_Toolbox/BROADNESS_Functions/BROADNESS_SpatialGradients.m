@@ -140,10 +140,23 @@ end
 if ~ismatrix(activationWeights)
     error('"ActivationPatterns_BrainNetworks" must be a 2D matrix (voxels × components).');
 end
+if size(activationWeights,1) ~= nVoxels
+    error('The number of voxels in "OriginalData" and "ActivationPatterns_BrainNetworks" must match.');
+end
 
 % Validate optional args
-if ~isnumeric(selectedPCs) || ~isvector(selectedPCs)
-    error('Please provide "principalcomps" as a numeric array or vector.');
+if ~isnumeric(selectedPCs) || ~isvector(selectedPCs) || isempty(selectedPCs)
+    error('Please provide "principalcomps" as a non-empty numeric vector.');
+end
+selectedPCs = selectedPCs(:)'; % use a consistent row-vector representation
+if any(~isfinite(selectedPCs)) || any(selectedPCs < 1) || any(fix(selectedPCs) ~= selectedPCs)
+    error('The values in "principalcomps" must be positive integer component indices.');
+end
+if any(selectedPCs > size(activationWeights,2))
+    error('The requested "principalcomps" exceed the available brain-network components.');
+end
+if length(unique(selectedPCs)) ~= length(selectedPCs)
+    error('The values in "principalcomps" must be unique.');
 end
 
 if ~isvector(clusterRange)
@@ -158,22 +171,12 @@ end
 
 disp('Computing Spatial Activation Patterns');
 
-% Average across conditions (if 3D), to compute covariance on main effect
-voxelTimeData = mean(voxelTimeData,4); %average across participants (if needed)
-meanAcrossConditions = squeeze(mean(voxelTimeData(:,:,:), 3));  % voxels × time
-
-% Covariance across voxels (rows are variables => transpose)
-voxelCovariance = cov(meanAcrossConditions');
-
 % Preallocate: thresholded activations used for clustering/plots
 thresholdedActivations = zeros(nVoxels, length(selectedPCs));
 
-% Loop over PCs up to the largest index in selectedPCs
-for pcIdx = 1:selectedPCs(end)
-    % Compute activation pattern for this PC (kept for completeness)
-    % Note: not directly used downstream but retained to preserve original steps
-    activationPatternForPC = activationWeights(:, pcIdx)' * voxelCovariance; %#ok<NASGU>
-
+% Loop over the selected PCs, storing them in the requested order
+for pcCol = 1:length(selectedPCs)
+    pcIdx = selectedPCs(pcCol);
     % Determine threshold for voxel inclusion for this PC
     if isempty(activationThresh)
         pcThreshold = mean(abs(activationWeights(:, pcIdx))) + std(abs(activationWeights(:, pcIdx)));
@@ -185,9 +188,9 @@ for pcIdx = 1:selectedPCs(end)
     % Apply threshold per voxel: keep original weight if above threshold, else 0
     for voxelIdx = 1:nVoxels
         if abs(activationWeights(voxelIdx, pcIdx)) > pcThreshold
-            thresholdedActivations(voxelIdx, pcIdx) = activationWeights(voxelIdx, pcIdx);
+            thresholdedActivations(voxelIdx, pcCol) = activationWeights(voxelIdx, pcIdx);
         else
-            thresholdedActivations(voxelIdx, pcIdx) = 0;
+            thresholdedActivations(voxelIdx, pcCol) = 0;
         end
     end
 end
@@ -302,7 +305,7 @@ S_GRAD.Clusters_info    = Clusters_info;
 
 % Default: plot only for optimal k. If 'all', iterate across all k in clusterRange.
 if isempty(plotMode)
-    if length(selectedPCs) == 2 || max(selectedPCs) == 3
+    if length(selectedPCs) == 2 || length(selectedPCs) == 3
         IDX = clustersForOptimalK;
         markerSize = 30;
 
@@ -311,16 +314,16 @@ if isempty(plotMode)
         for cl = 1:optimalK
             if length(selectedPCs) == 2
                 scatter( ...
-                    thresholdedActivations(IDX == cl, selectedPCs(1))', ...
-                    thresholdedActivations(IDX == cl, selectedPCs(2))', ...
+                    thresholdedActivations(IDX == cl, 1)', ...
+                    thresholdedActivations(IDX == cl, 2)', ...
                     markerSize, 'MarkerFaceColor', cmap(cl,:), 'MarkerEdgeColor', cmap(cl,:) ...
                 );
                 hold on;
             else
                 scatter3( ...
-                    thresholdedActivations(IDX == cl, selectedPCs(1))', ...
-                    thresholdedActivations(IDX == cl, selectedPCs(2))', ...
-                    thresholdedActivations(IDX == cl, selectedPCs(3))', ...
+                    thresholdedActivations(IDX == cl, 1)', ...
+                    thresholdedActivations(IDX == cl, 2)', ...
+                    thresholdedActivations(IDX == cl, 3)', ...
                     markerSize, 'MarkerFaceColor', cmap(cl,:), 'MarkerEdgeColor', cmap(cl,:) ...
                 );
                 hold on;
@@ -364,8 +367,8 @@ else
                 for cl = 1:kVal
                     if length(selectedPCs) == 2
                         scatter( ...
-                            thresholdedActivations(IDX == cl, selectedPCs(1))', ...
-                            thresholdedActivations(IDX == cl, selectedPCs(2))', ...
+                            thresholdedActivations(IDX == cl, 1)', ...
+                            thresholdedActivations(IDX == cl, 2)', ...
                             markerSize, 'MarkerFaceColor', cmap(cl,:), 'MarkerEdgeColor', cmap(cl,:) ...
                         );
                         hold on;
@@ -373,9 +376,9 @@ else
 
                     if length(selectedPCs) == 3
                         scatter3( ...
-                            thresholdedActivations(IDX == cl, selectedPCs(1))', ...
-                            thresholdedActivations(IDX == cl, selectedPCs(2))', ...
-                            thresholdedActivations(IDX == cl, selectedPCs(3))', ...
+                            thresholdedActivations(IDX == cl, 1)', ...
+                            thresholdedActivations(IDX == cl, 2)', ...
+                            thresholdedActivations(IDX == cl, 3)', ...
                             markerSize, 'MarkerFaceColor', cmap(cl,:), 'MarkerEdgeColor', cmap(cl,:) ...
                         );
                         hold on;
