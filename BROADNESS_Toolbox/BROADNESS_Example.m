@@ -13,22 +13,22 @@
 %  This script demonstrates the application of BROADNESS 
 %  (Broadband Brain Network Estimation via Source Separation).
 %
-%  The example dataset consists of data in the following format:
-%  brain voxel (sources) x time x experimental conditions (already averaged across trials) x participants
-%  The dataset is available at the following link:
+%  The example dataset is available both as separate participant files and
+%  as a single dataset averaged across participants:
 %  https://zenodo.org/records/17048137
-%  Place one MAT file per participant in the "data" folder next to
-%  "BROADNESS_Toolbox". To analyse data already averaged across
-%  participants, place only the single averaged MAT file in that folder.
+%  Each file contains trial-averaged data with dimensions:
+%  brain voxels (sources) x time x experimental conditions.
 %
-%  PLEASE NOTE
-%  The current BROADNESS pipeline takes as input a single 4D matrix that
-%  includes all individual participants' data, computes the group average
-%  for network estimation (using PCA or ICA), and then outputs the corresponding
-%  time series for each participant for statistical analysis.
-%  The spatial activation patterns of the networks is instead provided for
-%  the group level.
-%  Practical examples are provided below.
+%  For participant-level analyses, place one file per participant in the
+%  data folder. As shown below, the files are loaded and concatenated along
+%  a fourth dimension to obtain:
+%  brain voxels x time x experimental conditions x participants.
+%
+%  For a quicker group-level analysis, provide only the dataset already
+%  averaged across participants. This preserves the group-level spatial
+%  activation patterns and network time series, but not the participant
+%  variability required for participant-level statistical inference.
+%  Practical examples of both workflows are provided below.
 %
 %
 % ========================================================================
