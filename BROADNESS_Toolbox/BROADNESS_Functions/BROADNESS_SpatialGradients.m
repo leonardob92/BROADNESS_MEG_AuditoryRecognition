@@ -72,9 +72,10 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %
 % ------------------------------------------------------------------------
 %  AUTHORS:
-%  Chiara Malvaso, Mattia Rosso & Leonardo Bonetti 
+%  Chiara Malvaso, Mattia Rosso, Mathias Houe Andersen & Leonardo Bonetti 
 %  chiara.malvaso@studio.unibo.it
 %  mattia.rosso@clin.au.dk
+%  mathias.houe.andersen@regionh.dk
 %  leonardo.bonetti@clin.au.dk; leonardo.bonetti@psych.ox.ac.uk
 %  Center for Music in the Brain, Aarhus University
 %  Centre for Eudaimonia and Human Flourishing, Linacre College, University of Oxford
