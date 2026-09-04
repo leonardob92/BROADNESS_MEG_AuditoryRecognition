@@ -64,7 +64,7 @@ function [PHASE_STATS] = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, varargin)
 %  - PHASE_STATS                      : Structure containing:
 %      - .Metrics                     : Participant-level phase-space metrics
 %      - .Descriptive                 : Condition means and Euclidean separation
-%      - .Tests.StateSpace            : Hotelling tests of trajectory separation
+%      - .Tests.PhaseSpace            : Hotelling tests of trajectory separation
 %      - .Tests.Metrics               : Pairwise and omnibus scalar-metric tests
 %      - .Settings                    : Analysis settings and labels
 %
@@ -81,7 +81,7 @@ function [PHASE_STATS] = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, varargin)
 %    the participant's across-condition centroid is used descriptively.
 %  - Hotelling tests are most appropriate when the number of participants
 %    is larger than the number of selected phase-space dimensions.
-%  - FDR is applied separately to each output family (state-space condition,
+%  - FDR is applied separately to each output family (phase-space condition,
 %    group and interaction comparisons, and each scalar-metric comparison
 %    category). Omnibus ANOVA effects are corrected across time separately.
 %  - The omnibus analysis is parametric. The 'nonparametric' option applies
@@ -304,7 +304,7 @@ PHASE_STATS.Settings.SmoothingSamples = opts.smoothingsamples;
 PHASE_STATS.Settings.Alpha = opts.alpha;
 PHASE_STATS.Settings.FDR = lower(char(opts.fdr));
 PHASE_STATS.Settings.FDRFamily = ...
-    'Each state-space or scalar-metric comparison category across its time points and pairwise comparisons';
+    'Each phase-space or scalar-metric comparison category across its time points and pairwise comparisons';
 PHASE_STATS.Settings.TestType = testType;
 
 %% --------------------------- Run statistics ----------------------------
@@ -325,7 +325,7 @@ end
 disp('Computing phase-space statistics')
 
 PHASE_STATS.Tests.Enabled = true;
-PHASE_STATS.Tests.StateSpace = run_state_space_tests( ...
+PHASE_STATS.Tests.PhaseSpace = run_phase_space_tests( ...
     trajectories, time, conditionNames, groupMembers, groupNames, opts);
 
 metricNames = normalize_metric_names(opts.testmetrics);
@@ -494,9 +494,9 @@ for inputIndex = 1:2:length(varargin)
 end
 end
 
-%% ---------------------- State-space statistical tests ------------------
+%% ---------------------- Phase-space statistical tests ------------------
 
-function results = run_state_space_tests(trajectories, time, conditionNames, ...
+function results = run_phase_space_tests(trajectories, time, conditionNames, ...
     groupMembers, groupNames, opts)
 
 results.ConditionComparisons = {};

@@ -13,10 +13,13 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %
 % ========================================================================
 %
-%  This function computes RQA metrics on BROADNESS-derived time series of 
-%  brain networks. It reconstructs the system’s phase space using selected 
-%  principal components, computes recurrence plots (with and without thresholding), 
+%  This function computes RQA metrics on BROADNESS-derived time series of
+%  brain networks. It reconstructs the system’s phase space using selected
+%  principal components, computes recurrence plots (with and without thresholding),
 %  and extracts standard Recurrence Quantification Analysis (RQA) measures describing the system's temporal dynamics.
+%  Here, phase space is the multivariate representation in which each point
+%  describes the simultaneous activity of the selected brain networks at
+%  one time point.
 %
 %  Specifically, it:
 %   - Projects BROADNESS time series (brain networks) into a phase space using specified 

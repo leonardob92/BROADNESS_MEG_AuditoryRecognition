@@ -66,9 +66,9 @@
 %       Computes phase-space metrics and statistical comparisons between
 %       experimental conditions and, when provided, participant groups.
 %
-%  - 4) BROADNESS_SpatialGradients()
-%       Computes spatial gradients embedding and clustering on the spatial
-%       activation patterns of the brain networks
+%  - 4) BROADNESS_SpatialActivationClustering()
+%       Clusters voxels according to their spatial activation patterns
+%       across the selected brain networks
 %
 %  - 5) BROADNESS_AlternativeNetworkEstimation_ICA()
 %       Alternative computation of brain networks using ICA
@@ -317,7 +317,7 @@ PHASE_STATS = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, ...
 
 %%
 
-%% 4) SPATIAL GRADIENTS EMBEDDING AND CLUSTERING ANALYSIS
+%% 4) SPATIAL ACTIVATION PATTERN CLUSTERING
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
@@ -329,7 +329,7 @@ Options.MNI_coords = MNI8;
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-SPATIAL_GRADIENTS_BROADNESS = BROADNESS_SpatialGradients(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'mni_coords', Options.MNI_coords);
+SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'mni_coords', Options.MNI_coords);
 
 %%
 

@@ -2,7 +2,7 @@ function [ED] = BROADNESS_EffectiveDimensionality(eigenspectrum)
 %%
 % ========================================================================
 %  BROADBAND BRAIN NETWORK ESTIMATION VIA SOURCE SEPARATION (BROADNESS) TOOLBOX
-%  SPATIAL GRADIENTS EMBEDDING ESTIMATION
+%  EFFECTIVE DIMENSIONALITY ESTIMATION
 % ========================================================================
 %
 %  Please cite the first BROADNESS paper:

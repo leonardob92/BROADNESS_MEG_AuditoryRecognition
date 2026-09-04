@@ -1,8 +1,8 @@
-function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
+function [SPATIAL_CLUSTERING] = BROADNESS_SpatialActivationClustering(BROADNESS, varargin)
 %%
 % ========================================================================
 %  BROADBAND BRAIN NETWORK ESTIMATION VIA SOURCE SEPARATION (BROADNESS) TOOLBOX
-%  SPATIAL GRADIENTS EMBEDDING ESTIMATION
+%  SPATIAL ACTIVATION PATTERN CLUSTERING
 % ========================================================================
 %
 %  Please cite the first BROADNESS paper:
@@ -13,13 +13,15 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %
 % ========================================================================
 %
-%  This function computes the spatial gradients embedding of BROADNESS networks, 
-%  clustering voxels based on participation in the different networks.
+%  This function clusters the spatial activation patterns of BROADNESS
+%  networks, grouping voxels according to their loading profiles across
+%  the selected networks.
 %
 %  Specifically, it:
-%   - Compute the thresholded activation patterns scaling the weigths
+%   - Computes the thresholded activation patterns by scaling the weight
 %     coefficient obtained with BROADNESS_NetworkEstimation function
-%   - Clusters voxels in PC space using k-means (user-defined k range)
+%   - Clusters voxels in brain-network loading space using k-means
+%     (user-defined k range)
 %   - Determines the optimal number of clusters using silhouette scores
 %   - Saves cluster information, centroids, and NIFTI images (if path provided)
 %   - Optionally generates 2D/3D scatterplots of voxels colored by cluster
@@ -46,7 +48,7 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 % ------------------------------------------------------------------------
 %  OUTPUT:
 % ------------------------------------------------------------------------
-%  - S_GRAD                        : Structure with clustering results
+%  - SPATIAL_CLUSTERING            : Structure with clustering results
 %      - .idx                      : Table with cluster assignments (voxels × nclusters)
 %      - .SUM                      : Table of within-cluster sums of distances
 %      - .Centroids                : Cluster centroids for each k
@@ -59,7 +61,9 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %  NOTES:
 % ------------------------------------------------------------------------
 %
-%  - The clustering is performed on z-scored, thresholded spatial maps.
+%  - The clustering is performed on z-scored, thresholded spatial
+%    activation patterns. Anatomical proximity between voxels is not used
+%    by k-means.
 %
 %  - If 'outpath' is specified, the function saves NIFTI masks for each cluster
 %    (only for the optimal k) using an 8mm MNI template.
@@ -168,7 +172,7 @@ if ~isvector(clusterRange)
 end
 
 if isequal(selectedPCs, [1 2])
-    disp('Computing the spatial gradient for 2 principal components (default).');
+    disp('Computing spatial activation clustering for 2 principal components (default).');
 end
 
 %% --------------- Compute thresholded activation patterns ----------------
@@ -233,9 +237,9 @@ end
 % Convert to user-friendly tables (columns labeled by k)
 rawNames = strcat('Nclusters_', cellstr(num2str(clusterRange(:))));
 varNamesByK = matlab.lang.makeValidName(rawNames);
-S_GRAD.idx              = array2table(clusterAssignmentsAll(2:end,:), 'VariableNames', varNamesByK);
-S_GRAD.SUM              = array2table(withinClusterSums(:,2)', 'VariableNames', varNamesByK);
-S_GRAD.Centroids        = cell2table(clusterCentroidsAll, 'VariableNames', varNamesByK);
+SPATIAL_CLUSTERING.idx       = array2table(clusterAssignmentsAll(2:end,:), 'VariableNames', varNamesByK);
+SPATIAL_CLUSTERING.SUM       = array2table(withinClusterSums(:,2)', 'VariableNames', varNamesByK);
+SPATIAL_CLUSTERING.Centroids = cell2table(clusterCentroidsAll, 'VariableNames', varNamesByK);
 
 % -------- Elbow plot (sum of distances vs number of clusters) -----------
 figure;
@@ -265,7 +269,7 @@ else
     optimalK = clusterRange;
 end
 
-S_GRAD.optimalK = optimalK;
+SPATIAL_CLUSTERING.optimalK = optimalK;
 
 %% ---------------- Prepare cluster-specific info for the optimal k -------
 
@@ -277,9 +281,10 @@ optimalCol  = find(clusterAssignmentsAll(1,:) == optimalK, 1, 'first');
 clustersForOptimalK = clusterAssignmentsAll(2:end, optimalCol);   % voxel-wise labels 1..optimalK
 
 % Build headers for a potential table per cluster: [VoxelIdx, X, Y, Z, PC1, PC2, ...]
-tableHeaders = {'Voxel','X','Y','Z'};
-for pcVal = selectedPCs
-    tableHeaders{end+1} = ['PC' num2str(pcVal)];
+tableHeaders = cell(1, 4 + length(selectedPCs));
+tableHeaders(1:4) = {'Voxel','X','Y','Z'};
+for pcCol = 1:length(selectedPCs)
+    tableHeaders{4 + pcCol} = ['PC' num2str(selectedPCs(pcCol))];
 end
 
 Clusters_info = cell(optimalK,1);
@@ -303,7 +308,7 @@ for cl = 1:optimalK
     Clusters_info{cl} = tbl; % Store information
 end
 
-S_GRAD.Clusters_info    = Clusters_info;
+SPATIAL_CLUSTERING.Clusters_info = Clusters_info;
 
 %% ------------ One-dimensional activation plots by cluster -------------
 
@@ -336,8 +341,8 @@ end
 
 ClusterMinMax_PC = array2table(clusterMinMaxValues, ...
     'VariableNames', minMaxVariableNames);
-S_GRAD.ClusterPoints_PC = ClusterPoints_PC;
-S_GRAD.ClusterMinMax_PC = ClusterMinMax_PC;
+SPATIAL_CLUSTERING.ClusterPoints_PC = ClusterPoints_PC;
+SPATIAL_CLUSTERING.ClusterMinMax_PC = ClusterMinMax_PC;
 
 % Use a common symmetric x-axis so the optimal clusters are comparable.
 finiteActivationValues = thresholdedActivations(isfinite(thresholdedActivations));
@@ -567,7 +572,7 @@ if ~isempty(savePath)
         nii.img = outVol;
         nii.hdr.hist = maskNii.hdr.hist; % copy header info
         disp(['Saving NIFTI image - cluster ' num2str(cl)]);
-        save_nii(nii, [savePath '/BROADNESS_Output/BROADNESS_nifti/SpatialGradients_OptimalK_' num2str(optimalK) '_Cluster_' num2str(cl) '.nii']);
+        save_nii(nii, [savePath '/BROADNESS_Output/BROADNESS_nifti/SpatialActivationClustering_OptimalK_' num2str(optimalK) '_Cluster_' num2str(cl) '.nii']);
     end
 end
 
