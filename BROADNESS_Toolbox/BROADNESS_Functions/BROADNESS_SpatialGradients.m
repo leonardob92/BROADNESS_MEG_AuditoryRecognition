@@ -23,7 +23,8 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %   - Determines the optimal number of clusters using silhouette scores
 %   - Saves cluster information, centroids, and NIFTI images (if path provided)
 %   - Optionally generates 2D/3D scatterplots of voxels colored by cluster
-%   - Optionally generates 3D plots in a brain template of the different clusters 
+%   - Generates one-dimensional voxel activation plots for the optimal clusters
+%   - Optionally generates 3D plots in a brain template of the different clusters
 %
 % ------------------------------------------------------------------------
 %  INPUT ARGUMENTS:
@@ -38,7 +39,7 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %      - 'evalclusters'                    : Number of replications of the clustering analysis to identify ideal clustering solution using Silhouette method (default = 10) 
 %      - 'thresh'                          : Threshold for including voxel activations (default: mean + std)
 %      - 'scatterplots'                    : Set to 'all' to plot cluster results for all k
-%      - 'outpath'                         : If provided, saves NIFTI maps of clusters (default: [])
+%      - 'outpath'                         : If provided, saves NIFTI maps and cluster activation plots (default: [])
 %      - 'mni_coords'                      : MNI coordinates (Nvoxels x 3) for 3D plotting in brain template
 %                                            If empty, trying to read a default from files in 'External' function. This is in MNI space 8mm (LBPD order) 
 %
@@ -50,6 +51,8 @@ function [S_GRAD] = BROADNESS_SpatialGradients(BROADNESS, varargin)
 %      - .SUM                      : Table of within-cluster sums of distances
 %      - .Centroids                : Cluster centroids for each k
 %      - .optimalK                 : Optimal number of clusters (based on silhouette)
+%      - .ClusterPoints_PC         : Per-cluster tables of voxel activations for the selected PCs
+%      - .ClusterMinMax_PC         : Per-cluster minima and maxima for the selected PCs
 %
 %
 % ------------------------------------------------------------------------
@@ -300,6 +303,130 @@ for cl = 1:optimalK
 end
 
 S_GRAD.Clusters_info    = Clusters_info;
+
+%% ------------ One-dimensional activation plots by cluster -------------
+
+% Store the voxel values used in each cluster plot. The columns of
+% thresholdedActivations already follow the order requested in selectedPCs.
+nSelectedPCs = length(selectedPCs);
+pcVariableNames = cell(1, nSelectedPCs);
+minMaxVariableNames = cell(1, 1 + 2 * nSelectedPCs);
+minMaxVariableNames{1} = 'Cluster';
+for pcCol = 1:nSelectedPCs
+    pcVariableNames{pcCol} = ['PC' num2str(selectedPCs(pcCol))];
+    minMaxVariableNames{2 * pcCol} = ['PC' num2str(selectedPCs(pcCol)) '_min'];
+    minMaxVariableNames{2 * pcCol + 1} = ['PC' num2str(selectedPCs(pcCol)) '_max'];
+end
+
+ClusterPoints_PC = cell(optimalK, 1);
+clusterMinMaxValues = zeros(optimalK, 1 + 2 * nSelectedPCs);
+clusterMinMaxValues(:,1) = (1:optimalK)';
+
+for cl = 1:optimalK
+    clusterValues = thresholdedActivations(clustersForOptimalK == cl, :);
+    ClusterPoints_PC{cl} = array2table(clusterValues, ...
+        'VariableNames', pcVariableNames);
+
+    for pcCol = 1:nSelectedPCs
+        clusterMinMaxValues(cl, 2 * pcCol) = min(clusterValues(:,pcCol));
+        clusterMinMaxValues(cl, 2 * pcCol + 1) = max(clusterValues(:,pcCol));
+    end
+end
+
+ClusterMinMax_PC = array2table(clusterMinMaxValues, ...
+    'VariableNames', minMaxVariableNames);
+S_GRAD.ClusterPoints_PC = ClusterPoints_PC;
+S_GRAD.ClusterMinMax_PC = ClusterMinMax_PC;
+
+% Use a common symmetric x-axis so the optimal clusters are comparable.
+finiteActivationValues = thresholdedActivations(isfinite(thresholdedActivations));
+if isempty(finiteActivationValues)
+    maxAbsoluteActivation = 1;
+else
+    maxAbsoluteActivation = max(abs(finiteActivationValues));
+    if maxAbsoluteActivation == 0
+        maxAbsoluteActivation = 1;
+    end
+end
+plotLimits = [-1 1] * maxAbsoluteActivation * 1.05;
+
+clusterColors = jet(optimalK) * 0.9;
+laneSeparation = 1;
+lanePositions = (nSelectedPCs-1:-1:0) * laneSeparation;
+pointJitter = 0.28 * laneSeparation;
+baselineColor = [0.65 0.65 0.65];
+
+if ~isempty(savePath)
+    clusterPlotPath = fullfile(savePath, 'BROADNESS_Output', ...
+        'ClusterPCcoords', 'Cluster1DPointRugs');
+    if ~exist(clusterPlotPath, 'dir')
+        mkdir(clusterPlotPath);
+    end
+else
+    clusterPlotPath = [];
+end
+
+disp('Generating one-dimensional activation plots for the optimal clusters');
+for cl = 1:optimalK
+    clusterTable = ClusterPoints_PC{cl};
+    clusterFigure = figure('Color', 'w', ...
+        'Name', ['Cluster ' num2str(cl) ' activation values'], ...
+        'NumberTitle', 'off');
+    clusterAxes = axes('Parent', clusterFigure);
+    hold(clusterAxes, 'on');
+
+    for pcCol = 1:nSelectedPCs
+        laneY = lanePositions(pcCol);
+        plot(clusterAxes, plotLimits, [laneY laneY], '-', ...
+            'Color', baselineColor, 'LineWidth', 1);
+        plot(clusterAxes, [plotLimits(1) plotLimits(1)], ...
+            laneY + [-0.15 0.15] * laneSeparation, '-', ...
+            'Color', baselineColor, 'LineWidth', 1);
+        plot(clusterAxes, [plotLimits(2) plotLimits(2)], ...
+            laneY + [-0.15 0.15] * laneSeparation, '-', ...
+            'Color', baselineColor, 'LineWidth', 1);
+
+        text(clusterAxes, plotLimits(1) - 0.02 * diff(plotLimits), laneY, ...
+            ['BN' num2str(selectedPCs(pcCol))], ...
+            'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle');
+
+        activationValues = clusterTable{:,pcCol};
+        activationValues = activationValues(isfinite(activationValues));
+        % Exact zeros represent values removed by thresholding. Retain
+        % them in the output tables, but omit them from the plot so they
+        % do not form an artificial vertical column at zero.
+        activationValues = activationValues(activationValues ~= 0);
+        if ~isempty(activationValues)
+            % Continuous deterministic jitter separates overlapping points
+            % without creating artificial rows or changing MATLAB's
+            % random-number state.
+            jitterOrder = mod((1:length(activationValues))' * ...
+                0.618033988749895, 1);
+            jitterValues = (2 * jitterOrder - 1) * pointJitter;
+            scatter(clusterAxes, activationValues, laneY + jitterValues, 18, ...
+                'MarkerFaceColor', clusterColors(cl,:), ...
+                'MarkerEdgeColor', 'none');
+        end
+    end
+
+    xlim(clusterAxes, plotLimits);
+    ylim(clusterAxes, [min(lanePositions)-0.4 max(lanePositions)+0.4]);
+    xticks(clusterAxes, [plotLimits(1) 0 plotLimits(2)]);
+    set(clusterAxes, 'YColor', 'none');
+    box(clusterAxes, 'off');
+    grid(clusterAxes, 'off');
+    title(clusterAxes, ['Cluster ' num2str(cl)]);
+
+    if ~isempty(clusterPlotPath)
+        outputFile = fullfile(clusterPlotPath, ...
+            ['OptimalK_' num2str(optimalK) '_Cluster_' num2str(cl) '_activation_values.png']);
+        try
+            exportgraphics(clusterFigure, outputFile, 'Resolution', 300);
+        catch
+            print(clusterFigure, outputFile, '-dpng', '-r300');
+        end
+    end
+end
 
 %% ----------------------- Scatter plots (PC space) -----------------------
 
