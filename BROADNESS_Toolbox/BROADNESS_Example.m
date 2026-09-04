@@ -62,9 +62,13 @@
 %       series [it works for both the time series extracted by
 %       BROADNESS_NetworkEstimation (PCA) and BROADNESS_AlternativeNetworkEstimation_ICA (ICA)]
 %
-%  - 4) BROADNESS_SpatialGradients()
-%       Computes spatial gradients embedding and clustering on the spatial
-%       activation patterns of the brain networks
+%  - 3b) BROADNESS_PhaseSpaceStatistics()
+%       Computes phase-space metrics and statistical comparisons between
+%       experimental conditions and, when provided, participant groups.
+%
+%  - 4) BROADNESS_SpatialActivationClustering()
+%       Clusters voxels according to their spatial activation patterns
+%       across the selected brain networks
 %
 %  - 5) BROADNESS_AlternativeNetworkEstimation_ICA()
 %       Alternative computation of brain networks using ICA
@@ -277,7 +281,43 @@ RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'thres
 
 %%
 
-%% 4) SPATIAL GRADIENTS EMBEDDING AND CLUSTERING ANALYSIS
+%% 3b) PHASE-SPACE METRICS AND STATISTICS
+
+%%% ------------------- USER SETTINGS ------------------- %%%
+
+condition_names = {'Memorized','NewT1','NewT2','NewT3','NewT4'};
+
+% Statistical tests require one MAT file per participant. If only one file
+% containing averaged data is used, descriptive metrics are still returned.
+
+%%% ------------------ COMPUTATION --------------------- %%%
+
+PHASE_STATS = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, ...
+    'conditionnames', condition_names, ...
+    'baseline', [-0.1 0], ...
+    'smoothingsamples', 5, ...
+    'testtype', 'both');
+
+% Main outputs:
+% PHASE_STATS.Metrics       = participant-level phase-space measures
+% PHASE_STATS.Descriptive   = condition means and Euclidean distances
+% PHASE_STATS.Tests         = condition, group, and interaction statistics
+
+% To additionally compare real participant groups, provide the participant indices belonging to each group, for example:
+% group_labels = [...]; %one group label (1 or 2) for each participant
+% group_indices = {find(group_labels == 1), find(group_labels == 2)};
+% group_names = {'Group1','Group2'};
+% PHASE_STATS = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, ...
+%     'conditionnames', condition_names, ...
+%     'groupindices', group_indices, ...
+%     'groupnames', group_names, ...
+%     'baseline', [-0.1 0], ...
+%     'smoothingsamples', 5, ...
+%     'testtype', 'both');
+
+%%
+
+%% 4) SPATIAL ACTIVATION PATTERN CLUSTERING
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
@@ -289,7 +329,7 @@ Options.MNI_coords = MNI8;
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-SPATIAL_GRADIENTS_BROADNESS = BROADNESS_SpatialGradients(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'mni_coords', Options.MNI_coords);
+SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'mni_coords', Options.MNI_coords);
 
 %%
 
