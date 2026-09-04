@@ -62,6 +62,10 @@
 %       series [it works for both the time series extracted by
 %       BROADNESS_NetworkEstimation (PCA) and BROADNESS_AlternativeNetworkEstimation_ICA (ICA)]
 %
+%  - 3b) BROADNESS_PhaseSpaceStatistics()
+%       Computes phase-space metrics and statistical comparisons between
+%       experimental conditions and, when provided, participant groups.
+%
 %  - 4) BROADNESS_SpatialGradients()
 %       Computes spatial gradients embedding and clustering on the spatial
 %       activation patterns of the brain networks
@@ -105,7 +109,7 @@ BROADNESS_Startup(project_path);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-average_data_label = 1; %1 = data already averaged; 0 = single participant data
+average_data_label = 0; %1 = data already averaged; 0 = single participant data
 
 if average_data_label == 1
     % 1) loading an example of data already averaged across participants
@@ -274,6 +278,42 @@ BROADNESS_Visualizer(BROADNESS,Options)
 %%% ------------------ COMPUTATION --------------------- %%%
 
 RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'threshold',0.1,'video','off','figure','on');
+
+%%
+
+%% 3b) PHASE-SPACE METRICS AND STATISTICS
+
+%%% ------------------- USER SETTINGS ------------------- %%%
+
+condition_names = {'Memorized','NewT1','NewT2','NewT3','NewT4'};
+
+% Statistical tests require one MAT file per participant. If only one file
+% containing averaged data is used, descriptive metrics are still returned.
+
+%%% ------------------ COMPUTATION --------------------- %%%
+
+PHASE_STATS = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, ...
+    'conditionnames', condition_names, ...
+    'baseline', [-0.1 0], ...
+    'smoothingsamples', 5, ...
+    'testtype', 'both');
+
+% Main outputs:
+% PHASE_STATS.Metrics       = participant-level phase-space measures
+% PHASE_STATS.Descriptive   = condition means and Euclidean distances
+% PHASE_STATS.Tests         = condition, group, and interaction statistics
+
+% To additionally compare real participant groups, provide the participant indices belonging to each group, for example:
+% group_labels = [...]; %one group label (1 or 2) for each participant
+% group_indices = {find(group_labels == 1), find(group_labels == 2)};
+% group_names = {'Group1','Group2'};
+% PHASE_STATS = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, ...
+%     'conditionnames', condition_names, ...
+%     'groupindices', group_indices, ...
+%     'groupnames', group_names, ...
+%     'baseline', [-0.1 0], ...
+%     'smoothingsamples', 5, ...
+%     'testtype', 'both');
 
 %%
 

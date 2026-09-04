@@ -58,6 +58,10 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %  OUTPUT:
 % ------------------------------------------------------------------------
 %  - RQA_BROADNESS                              : Structure with RQA results
+%      - .PhaseSpace.Time                      : Analysed time points in seconds
+%      - .PhaseSpace.PCs                       : Brain-network components used as dimensions
+%      - .PhaseSpace.ParticipantCoordinates    : Cell array of participant trajectories
+%      - .PhaseSpace.MeanCoordinates           : Cell array of participant-averaged trajectories
 %      - .RecurrencePlots.DistMat               : Cell array of distance matrices
 %      - .RecurrencePlots.RecurPlot             : Cell array of recurrence plots (i.e., thresholded distance matrices)
 %      - .RQA_metrics                           : Table of 8 RQA measures
@@ -163,9 +167,11 @@ else
     end
 end
 
-% Indices for the chosen window (start >=, end <=)
-timemin = find(time >= time_seconds(1), 1, 'first');
-timemax = find(time <= time_seconds(2), 1, 'last');
+% Indices for the chosen window (start >=, end <=). The small tolerance
+% retains endpoints that differ only because of floating-point precision.
+time_tolerance = max(10*builtin('eps',max(1,max(abs(time)))), median(diff(time))*1e-9);
+timemin = find(time >= time_seconds(1)-time_tolerance, 1, 'first');
+timemax = find(time <= time_seconds(2)+time_tolerance, 1, 'last');
 reduced_time_idx = timemin:timemax;
 
 if ~isempty(theiler_window)
@@ -565,6 +571,17 @@ for part = 1:nPart
 end
 
 %% ---------------------------- Store outputs -----------------------------
+
+% Phase-space coordinates are exposed so that they can be inspected or
+% passed directly to BROADNESS_PhaseSpaceStatistics without recomputing
+% the phase-space embedding or the recurrence analysis.
+RQA_BROADNESS.PhaseSpace.Time                   = time(reduced_time_idx);
+RQA_BROADNESS.PhaseSpace.PCs                    = PCs;
+RQA_BROADNESS.PhaseSpace.ParticipantCoordinates = phase_space_participants;
+RQA_BROADNESS.PhaseSpace.MeanCoordinates        = phase_space;
+RQA_BROADNESS.PhaseSpace.nConditions            = nCond;
+RQA_BROADNESS.PhaseSpace.nParticipants          = nPart;
+RQA_BROADNESS.PhaseSpace.nDimensions            = length(PCs);
 
 % NEW: Per-participant recurrence plots + metrics
 RQA_BROADNESS.RecurrencePlots.DistMat   = RP_participants;        % cell(nCond,nPart)
