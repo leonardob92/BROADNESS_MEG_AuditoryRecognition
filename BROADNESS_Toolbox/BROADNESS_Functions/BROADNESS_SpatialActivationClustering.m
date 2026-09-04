@@ -84,7 +84,9 @@ function [SPATIAL_CLUSTERING] = BROADNESS_SpatialActivationClustering(BROADNESS,
 %  Center for Music in the Brain, Aarhus University
 %  Centre for Eudaimonia and Human Flourishing, Linacre College, University of Oxford
 %  Department of Physics, University of Bologna
-%  Aarhus (DK), Oxford (UK), Bologna (Italy), Updated version 23/08/2025
+%  Danish Research Centre for Magnetic Resonance, Copenhagen University Hospital
+%  Faculty of Health and Medical Sciences, University of Copenhagen
+%  Aarhus (DK), Copenhagen (DK), Oxford (UK), Bologna (Italy), Updated version 23/08/2025
 %
 % ========================================================================
 %

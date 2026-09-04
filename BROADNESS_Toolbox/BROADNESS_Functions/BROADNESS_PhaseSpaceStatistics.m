@@ -99,7 +99,9 @@ function [PHASE_STATS] = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, varargin)
 %  mattia.rosso@clin.au.dk
 %  Center for Music in the Brain, Aarhus University
 %  Centre for Eudaimonia and Human Flourishing, Linacre College, University of Oxford
-%  Aarhus (DK), Oxford (UK)
+%  Danish Research Centre for Magnetic Resonance, Copenhagen University Hospital
+%  Faculty of Health and Medical Sciences, University of Copenhagen
+%  Aarhus (DK), Copenhagen (DK), Oxford (UK)
 %
 % ========================================================================
 
