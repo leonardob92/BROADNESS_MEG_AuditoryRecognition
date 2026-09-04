@@ -109,7 +109,7 @@ BROADNESS_Startup(project_path);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-average_data_label = 0; %1 = data already averaged; 0 = single participant data
+average_data_label = 1; %1 = data already averaged; 0 = single participant data
 
 if average_data_label == 1
     % 1) loading an example of data already averaged across participants
