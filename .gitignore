@@ -1,0 +1,24 @@
+# Local research data
+/Data/
+*.mat
+
+# BROADNESS-generated outputs
+BROADNESS_Output/
+*.nii
+*.nii.gz
+
+# macOS metadata
+.DS_Store
+
+# Python environments, caches, and build artefacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+build/
+dist/
+*.egg-info/

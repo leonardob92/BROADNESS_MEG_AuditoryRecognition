@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "broadness"
+version = "0.1.0"
+description = "Python implementation of the BROADNESS toolbox"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Leonardo Bonetti" },
+  { name = "Chiara Malvaso" },
+  { name = "Mattia Rosso" },
+  { name = "Mathias H. Andersen" },
+]
+dependencies = [
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "pandas>=2.1",
+  "scikit-learn>=1.3",
+  "h5py>=3.10",
+  "hdf5storage>=0.1.19",
+]
+
+[project.optional-dependencies]
+visualize = [
+  "matplotlib>=3.8",
+  "nibabel>=5.2",
+  "openpyxl>=3.1",
+]
+test = [
+  "pytest>=8",
+  "matplotlib>=3.8",
+  "nibabel>=5.2",
+  "openpyxl>=3.1",
+]
+
+[project.urls]
+Repository = "https://github.com/leonardob92/BROADNESS_MEG_AuditoryRecognition"
+Publication = "https://doi.org/10.1002/advs.202507878"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
