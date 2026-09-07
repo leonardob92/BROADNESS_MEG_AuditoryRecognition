@@ -10,6 +10,7 @@ import nibabel as nib
 import numpy as np
 import pandas as pd
 import pytest
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.io import loadmat
 
 from broadness import (
@@ -81,6 +82,11 @@ def test_publication_figures_cover_the_first_four_plot_families():
     assert visualization.variance_figure is not None
     assert len(visualization.time_series_figures) == 2
     assert visualization.spatial_pattern_figure is not None
+    spatial_axis = visualization.spatial_pattern_figure.axes[0]
+    assert any(
+        isinstance(collection, Poly3DCollection)
+        for collection in spatial_axis.collections
+    )
     assert visualization.nifti_paths == []
     assert visualization.activation_table_paths == []
 

@@ -11,7 +11,8 @@ and can produce the same five output families as the MATLAB visualizer:
 1. Dynamic brain-activity maps of the original data.
 2. Variance explained by the brain networks.
 3. Network time series, including standard errors for participant data.
-4. A three-dimensional view of spatial activation patterns in MNI space.
+4. A three-dimensional view of spatial activation patterns inside a smooth
+   1-mm MNI152 brain surface.
 5. NIfTI images and Excel tables of thresholded spatial patterns.
 
 OPTIONS
@@ -92,6 +93,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 import warnings
@@ -667,34 +669,62 @@ def _equal_3d_axes(axis: Any, coordinates: FloatArray) -> None:
     axis.set_box_aspect((1, 1, 1))
 
 
+@lru_cache(maxsize=1)
+def _mni_brain_surface() -> tuple[FloatArray, IntegerArray]:
+    """Load the compact 1-mm MNI152 surface bundled for visualization."""
+    surface_path = (
+        Path(__file__).resolve().parent
+        / "assets"
+        / "MNI152_T1_1mm_brain_surface.npz"
+    )
+    if not surface_path.is_file():
+        raise FileNotFoundError(
+            "The bundled 1-mm MNI152 brain surface was not found: "
+            f"{surface_path}"
+        )
+
+    with np.load(surface_path, allow_pickle=False) as surface:
+        vertices = np.asarray(surface["vertices"], dtype=np.float64)
+        faces = np.asarray(surface["faces"], dtype=np.int64)
+
+    if vertices.ndim != 2 or vertices.shape[1] != 3:
+        raise ValueError("The bundled MNI152 surface vertices are invalid")
+    if faces.ndim != 2 or faces.shape[1] != 3:
+        raise ValueError("The bundled MNI152 surface faces are invalid")
+    if not np.all(np.isfinite(vertices)):
+        raise ValueError("The bundled MNI152 surface contains invalid vertices")
+    if np.any(faces < 0) or np.any(faces >= vertices.shape[0]):
+        raise ValueError("The bundled MNI152 surface contains invalid faces")
+    return vertices, faces
+
+
 def _spatial_pattern_plot(
     activation_patterns: FloatArray,
     coordinates: FloatArray,
     components: IntegerArray,
     colors: FloatArray,
 ) -> Figure:
-    """Plot selected thresholded patterns over a neutral MNI coordinate cloud."""
+    """Plot selected thresholded patterns inside the 1-mm MNI152 surface."""
     plt = _matplotlib()
     from matplotlib.lines import Line2D
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
     valid_coordinates = np.all(np.isfinite(coordinates), axis=1)
     brain_coordinates = coordinates[valid_coordinates]
     if brain_coordinates.size == 0:
         raise ValueError('"Options.MNI_coords" contains no valid coordinates')
 
+    surface_vertices, surface_faces = _mni_brain_surface()
     figure = plt.figure(figsize=(9.2, 7.3), constrained_layout=True)
     axis = figure.add_subplot(111, projection="3d")
-    axis.scatter(
-        brain_coordinates[:, 0],
-        brain_coordinates[:, 1],
-        brain_coordinates[:, 2],
-        s=4,
-        color="#59616B",
-        alpha=0.075,
-        linewidths=0,
-        depthshade=False,
-        rasterized=True,
+    brain_surface = Poly3DCollection(
+        surface_vertices[surface_faces],
+        facecolor=(0.56, 0.61, 0.66, 0.075),
+        edgecolor="none",
+        linewidth=0,
     )
+    brain_surface.set_rasterized(True)
+    axis.add_collection3d(brain_surface)
 
     legend_handles: list[Line2D] = []
     for position, component in enumerate(components):
@@ -736,7 +766,10 @@ def _spatial_pattern_plot(
         )
 
     axis.view_init(elev=18, azim=-68)
-    _equal_3d_axes(axis, brain_coordinates)
+    _equal_3d_axes(
+        axis,
+        np.concatenate((brain_coordinates, surface_vertices), axis=0),
+    )
     axis.set_axis_off()
     axis.set_title("Spatial activation patterns of brain networks", pad=14)
     if legend_handles:
