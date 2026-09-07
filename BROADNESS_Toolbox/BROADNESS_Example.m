@@ -104,7 +104,7 @@ clc
 % Setup directories relative to this example script
 project_path = '/Users/au550322/Documents/GitHub/BROADNESS_MEG_AuditoryRecognition/BROADNESS_Toolbox';
 data_path = '/Users/au550322/Documents/GitHub/BROADNESS_MEG_AuditoryRecognition/Data';
-output_path = project_path;
+output_path = [project_path '/Output'];
 addpath(project_path)
 BROADNESS_Startup(project_path);
 

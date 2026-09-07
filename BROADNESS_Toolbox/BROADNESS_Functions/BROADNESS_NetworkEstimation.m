@@ -59,18 +59,33 @@ function [BROADNESS] = BROADNESS_NetworkEstimation(data, time, varargin)
 %                            -'average' = on the basis of the sign of the average of weights
 %                         Default: max_abs
 %
+%  - 'components_num'   : Number of leading PCA components retained for the
+%                         group spatial activation patterns, network time
+%                         series, and condition-specific participant spatial
+%                         activation patterns. If fewer components are
+%                         available, all available components are retained.
+%                         Monte-Carlo significance is reported separately and
+%                         does not change this retained component set.
+%                         Default: 30
+%
 % ------------------------------------------------------------------------
 %  OUTPUT ARGUMENTS:
 % ------------------------------------------------------------------------
 %  - BROADNESS   : Structure containing the following information for each brain network (PC):
-%                   1. spatial activation patterns (eigenvectors)
+%                   1. group-level spatial activation patterns (eigenvectors)
+%                      for the retained leading components
 %                   2. variance explained (eigenvalues) - original data
 %                   3. brain network time series
-%                      (time × components × [conditions] × [participants])
-%                   4. number of significant brain networks after MCS
-%                   5. variance explained (eigenvalues) - permuted data (only if MCS was computed) 
-%                   6. time (carried out for future plotting purposes) 
-%                   7. data (carried out for future plotting purposes)
+%                      (time × retained components × [conditions] × [participants])
+%                   4. condition-specific participant spatial activation
+%                      patterns (sources × retained components × conditions
+%                      × participants), when 4D data are provided
+%                   5. one-based indices of the retained leading components
+%                   6. number of significant brain networks after MCS
+%                   7. variance explained (eigenvalues) - permuted data (only if MCS was computed)
+%                   8. PCA centering mean used for all projections
+%                   9. time (carried out for future plotting purposes)
+%                  10. data (carried out for future plotting purposes)
 %
 % ------------------------------------------------------------------------
 %  AUTHORS:
@@ -93,7 +108,7 @@ function [BROADNESS] = BROADNESS_NetworkEstimation(data, time, varargin)
 disp('Checking inputs')
 
 % Defining default values
-opts = struct('time_window', [], 'permutations_num', 0, 'randomization', 1, 'sign_eigenvect', 'max_abs');
+opts = struct('time_window', [], 'permutations_num', 0, 'randomization', 1, 'sign_eigenvect', 'max_abs', 'components_num', 30);
 
 % Parsing name-value pair arguments
 opts = parse_name_value_pairs(opts, varargin{:});
@@ -102,6 +117,7 @@ opts = parse_name_value_pairs(opts, varargin{:});
 permutations_num = opts.permutations_num;
 randomization = opts.randomization;
 sign_eigenvect = opts.sign_eigenvect;
+components_num = opts.components_num;
 
 % Checking inputs
 if isstring(sign_eigenvect) && isscalar(sign_eigenvect)
@@ -112,6 +128,9 @@ if ~ischar(sign_eigenvect) || ~isrow(sign_eigenvect) || ~any(strcmpi(sign_eigenv
     error('"sign_eigenvect" must be ''occurrences'', ''max_abs'', or ''average''.')
 end
 sign_eigenvect = lower(sign_eigenvect);
+if ~isnumeric(components_num) || ~isscalar(components_num) || ~isfinite(components_num) || components_num < 1 || mod(components_num,1) ~= 0
+    error('''components_num'' must be a positive integer scalar.')
+end
 if randomization < 1 || randomization > 3
     error('Randomization must be between 1 and 3')
 end
@@ -159,11 +178,12 @@ averaged_data = mean(data(:,:,:),3); %average across 3rd dimension (e.g. experim
 if exist('pca', 'file') == 2
     % The PCA function exists (from Statistics Toolbox)
     disp('Using built-in PCA function...');
-    [activation_patterns,~,~,~,variance] = pca(averaged_data'); %actual computation of PCA
+    [activation_patterns,~,~,~,variance,pca_mean] = pca(averaged_data'); %actual computation of PCA and storage of the centering mean
 else
     % Fallback if PCA function is not available
     disp('pca() not found — using custom PCA implementation...');
-    data_demeaned = bsxfun(@minus,averaged_data,mean(averaged_data,2)); %demeaning across time for each brain source
+    pca_mean = mean(averaged_data,2)'; %source-wise mean used to centre all data projected into the group PCA solution
+    data_demeaned = bsxfun(@minus,averaged_data,pca_mean'); %demeaning across time for each brain source
     data_covariance = cov(data_demeaned'); %covariance matrix (note that data_demeaned is transposed, so time-points x brain sources)
     [activation_patterns,eigenvalues] = eig(data_covariance); %eigenvector solution
     [eigenvalues,sidx]  = sort( diag(eigenvalues),'descend' ); % the first output returns sorted evals extracted from diagonal
@@ -207,7 +227,7 @@ if permutations_num > 0 %if MCS was requested
             data_demeaned_r = bsxfun(@minus,data_reshaped,mean(data_reshaped,2)); %demeaning across time for each brain source
             data_covariance_r = cov(data_demeaned_r'); %covariance matrix (note that data_demeaned is transposed, so time-points x brain sources)
             [~,eigenvalues_r] = eig(data_covariance_r); %eigenvector solution
-            [eigenvalues_r,sidx_r]  = sort( diag(eigenvalues_r),'descend' ); % the first output returns sorted evals extracted from diagonal
+            [eigenvalues_r,~]  = sort( diag(eigenvalues_r),'descend' ); % the first output returns sorted evals extracted from diagonal
             variance_randomized = eigenvalues_r.*100./sum(eigenvalues_r); % normalize eigenvalues to percent variance explained
         end
         variance_randomized_perms = cat(2,variance_randomized_perms,variance_randomized); %storing variance of the permuted data to be stored for future plotting purposes
@@ -250,13 +270,16 @@ switch sign_eigenvect
 end
 activation_patterns = activation_patterns .* dummy_ones; %actual normalization of the eigenvectors sign
 
+selected_components = 1:min(components_num,size(activation_patterns,2)); %retaining the requested number of leading PCA components
+activation_patterns_selected = activation_patterns(:,selected_components);
+
 
 %% preparing output structure
 
 disp('Preparing output')
 
 BROADNESS = [];
-BROADNESS.Variance_BrainNetworks = variance; %storing variance of significant brain networks (PCs)
+BROADNESS.Variance_BrainNetworks = variance; %storing variance explained by all available PCA components
 
 if permutations_num > 0 %if MCS was run
     BROADNESS.Significant_BrainNetworks = PCs;
@@ -265,29 +288,47 @@ else
     BROADNESS.Significant_BrainNetworks = 'MCS has not been run';
 end
 
-BROADNESS.ActivationPatterns_BrainNetworks = activation_patterns; %weights of PCA
+BROADNESS.ActivationPatterns_BrainNetworks = activation_patterns_selected; %weights of the retained leading PCA components
+BROADNESS.SelectedComponents = selected_components; %one-based indices of the retained leading PCA components
+BROADNESS.PCA_Mean = pca_mean; %source-wise group mean used for PCA centering and participant projections
 
-if isempty(PCs) %very unlikely case where no PCs of the original data explain a higher variance than the randomized data
-    TimeSeries = [];
-else
-    if non_singleton_dims == 4 %if data is provided for several independent participants
-        TimeSeries = zeros(length(time),PCs(end),size(data_temp,3),size(data_temp,4));
-        for parti = 1:size(data_temp,4) %over participants
-            disp(['Computing time series for participant ' num2str(parti) ' / ' num2str(size(data_temp,4))])
-            for condi = 1:size(data,3) %over experimental conditions (or whatever the user has in the 3rd dimension of the data matrix)
-                TimeSeries(:,:,condi,parti) = data_temp(:,:,condi,parti)' * activation_patterns(:,PCs); %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each voxel activation by its corresponding load
-            end
-        end
-    else
-        TimeSeries = zeros(length(time),PCs(end),size(data,3)); %preallocating matrix for brain networks time series
+if non_singleton_dims == 4 %if data is provided for several independent participants
+    TimeSeries = zeros(length(time),length(selected_components),size(data_temp,3),size(data_temp,4));
+    for parti = 1:size(data_temp,4) %over participants
+        disp(['Computing time series for participant ' num2str(parti) ' / ' num2str(size(data_temp,4))])
         for condi = 1:size(data,3) %over experimental conditions (or whatever the user has in the 3rd dimension of the data matrix)
-            TimeSeries(:,:,condi) = data(:,1:length(time),condi)' * activation_patterns(:,PCs); %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each voxel activation by its corresponding load
+            data_centered = bsxfun(@minus,data_temp(:,:,condi,parti)',pca_mean); %using the same source-wise centering mean estimated by group PCA
+            TimeSeries(:,:,condi,parti) = data_centered * activation_patterns_selected; %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each centred voxel activation by its corresponding load
         end
-        
+    end
+else
+    TimeSeries = zeros(length(time),length(selected_components),size(data,3)); %preallocating matrix for brain networks time series
+    for condi = 1:size(data,3) %over experimental conditions (or whatever the user has in the 3rd dimension of the data matrix)
+        data_centered = bsxfun(@minus,data(:,1:length(time),condi)',pca_mean); %using the same source-wise centering mean estimated by group PCA
+        TimeSeries(:,:,condi) = data_centered * activation_patterns_selected; %matrix multiplication for getting a timeseries obtained by multiplying, for each time-point, each centred voxel activation by its corresponding load
     end
 end
 
 BROADNESS.TimeSeries_BrainNetworks = TimeSeries; %storing PCA time series
+
+
+%% condition-specific participant spatial activation patterns
+
+IndividualActivationPatterns = [];
+
+if non_singleton_dims == 4
+    IndividualActivationPatterns = zeros(size(data_temp,1),length(selected_components),size(data_temp,3),size(data_temp,4));
+    for parti = 1:size(data_temp,4) %over participants
+        disp(['Computing spatial activation patterns for participant ' num2str(parti) ' / ' num2str(size(data_temp,4))])
+        for condi = 1:size(data_temp,3) %over experimental conditions
+            data_centered = bsxfun(@minus,data_temp(:,:,condi,parti)',pca_mean); %time x sources, centred using the group PCA mean
+            participant_time_series = data_centered * activation_patterns_selected; %first dual-regression stage: group patterns to participant time series
+            IndividualActivationPatterns(:,:,condi,parti) = (pinv(participant_time_series) * data_centered)'; %second dual-regression stage: participant time series back to participant source data
+        end
+    end
+end
+
+BROADNESS.ActivationPatterns_BrainNetworks_Individual = IndividualActivationPatterns;
 
 BROADNESS.Time = time; %storing time
 if non_singleton_dims == 4 %if data is provided for several independent participants
