@@ -10,6 +10,7 @@ from .BROADNESS_NetworkEstimation import (
     BROADNESSResult,
     BROADNESS_NetworkEstimation,
 )
+from .BROADNESS_Visualizer import BROADNESSVisualization, BROADNESS_Visualizer
 
 __version__ = "0.1.0"
 
@@ -19,5 +20,7 @@ __all__ = [
     "BROADNESS_EffectiveDimensionality",
     "BROADNESS_NetworkEstimation",
     "BROADNESS_Startup",
+    "BROADNESSVisualization",
+    "BROADNESS_Visualizer",
     "__version__",
 ]
