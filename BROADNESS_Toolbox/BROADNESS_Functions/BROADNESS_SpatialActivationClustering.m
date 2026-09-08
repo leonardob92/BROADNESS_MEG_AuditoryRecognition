@@ -23,6 +23,8 @@ function [SPATIAL_CLUSTERING] = BROADNESS_SpatialActivationClustering(BROADNESS,
 %   - Clusters voxels in brain-network loading space using k-means
 %     (user-defined k range)
 %   - Determines the optimal number of clusters using silhouette scores
+%   - Relabels clusters from the broadest network representation to the
+%     least represented/background solution
 %   - Saves cluster information, centroids, and NIFTI images (if path provided)
 %   - Optionally generates 2D/3D scatterplots of voxels colored by cluster
 %   - Generates one-dimensional voxel activation plots for the optimal clusters
@@ -40,10 +42,15 @@ function [SPATIAL_CLUSTERING] = BROADNESS_SpatialActivationClustering(BROADNESS,
 %      - 'nclusters'                       : Range of k-means clusters to test (default: 2:20)
 %      - 'evalclusters'                    : Number of replications of the clustering analysis to identify ideal clustering solution using Silhouette method (default = 10) 
 %      - 'thresh'                          : Threshold for including voxel activations (default: mean + std)
+%      - 'representation_threshold'        : Minimum proportion of suprathreshold voxels required for a
+%                                            network to be represented in a cluster (default: 0.50)
 %      - 'scatterplots'                    : Set to 'all' to plot cluster results for all k
 %      - 'outpath'                         : If provided, saves NIFTI maps and cluster activation plots (default: [])
 %      - 'mni_coords'                      : MNI coordinates (Nvoxels x 3) for 3D plotting in brain template
-%                                            If empty, trying to read a default from files in 'External' function. This is in MNI space 8mm (LBPD order) 
+%                                            If empty, trying to read a default from files in 'External' function. This is in MNI space 8mm (LBPD order)
+%      - 'brainmarkersize'                 : Marker size for 3D cluster maps (default: 8)
+%      - 'braincolorintensity'             : Multiplicative brightness of 3D cluster colors, between 0 and 1
+%                                            (default: 0.75)
 %
 % ------------------------------------------------------------------------
 %  OUTPUT:
@@ -53,6 +60,9 @@ function [SPATIAL_CLUSTERING] = BROADNESS_SpatialActivationClustering(BROADNESS,
 %      - .SUM                      : Table of within-cluster sums of distances
 %      - .Centroids                : Cluster centroids for each k
 %      - .optimalK                 : Optimal number of clusters (based on silhouette)
+%      - .ClusterSummary           : Breadth, support, strength, direction, and voxel count for each
+%                                    relabelled cluster in the optimal solution
+%      - .ClusterSummaryAll        : Cluster summaries for every tested k
 %      - .ClusterPoints_PC         : Per-cluster tables of voxel activations for the selected PCs
 %      - .ClusterMinMax_PC         : Per-cluster minima and maxima for the selected PCs
 %
@@ -69,6 +79,14 @@ function [SPATIAL_CLUSTERING] = BROADNESS_SpatialActivationClustering(BROADNESS,
 %    (only for the optimal k) using an 8mm MNI template.
 %
 %  - K-means clustering is repeated multiple times (Replicates = 100) for stability.
+%
+%  - K-means labels have no intrinsic order. Here they are relabelled after
+%    clustering so Cluster 1 is the solution involving the broadest set of
+%    selected networks and the background solution is placed last. This
+%    changes only cluster names, not voxel membership or k-means results.
+%
+%  - Network representation is based on absolute suprathreshold activation.
+%    Signed cluster means are retained separately in ClusterSummary.
 %
 %  - The optimal number of clusters is determined as the mode of silhouette-based
 %    evaluations repeated 10 times, to improve robustness.
@@ -111,9 +129,12 @@ params = struct( ...
     'nclusters', 2:20, ...      % range of k for k-means
     'evalclusters',10, ...      % repetitions for clustering analysis to identify ideal clustering solution
     'thresh', [], ...           % per-PC abs(weight) threshold; default mean+std
+    'representation_threshold', 0.50, ... % minimum within-cluster support for a represented network
     'scatterplots', [], ...     % [] (only optimal k), or 'all'
     'outpath', [], ...           % folder to save NIFTI masks (optional)
-    'mni_coords', [] ...        % MNI coordinates for 3D plotting in brain template
+    'mni_coords', [], ...       % MNI coordinates for 3D plotting in brain template
+    'brainmarkersize', 8, ...   % marker size for 3D cluster maps
+    'braincolorintensity', 0.75 ... % brightness multiplier for 3D cluster colors
 );
 
 % Parse name-value pairs
@@ -124,9 +145,12 @@ selectedPCs              = params.principalcomps;
 clusterRange             = params.nclusters;
 plotMode                 = params.scatterplots;
 activationThresh         = params.thresh;
+representationThreshold  = params.representation_threshold;
 savePath                 = params.outpath;
 numSilhouetteRepeats     = params.evalclusters;
 mni_coords               = params.mni_coords;
+brainMarkerSize          = params.brainmarkersize;
+brainColorIntensity      = params.braincolorintensity;
 
 % Validate required fields
 if isfield(BROADNESS, 'OriginalData')
@@ -172,6 +196,18 @@ end
 if ~isvector(clusterRange)
     error('Please provide "nclusters" as a numeric vector.');
 end
+if ~isnumeric(representationThreshold) || ~isscalar(representationThreshold) || ...
+        ~isfinite(representationThreshold) || representationThreshold <= 0 || representationThreshold > 1
+    error('"representation_threshold" must be a numeric scalar greater than 0 and no larger than 1.');
+end
+if ~isnumeric(brainMarkerSize) || ~isscalar(brainMarkerSize) || ...
+        ~isfinite(brainMarkerSize) || brainMarkerSize <= 0
+    error('"brainmarkersize" must be a positive numeric scalar.');
+end
+if ~isnumeric(brainColorIntensity) || ~isscalar(brainColorIntensity) || ...
+        ~isfinite(brainColorIntensity) || brainColorIntensity <= 0 || brainColorIntensity > 1
+    error('"braincolorintensity" must be a numeric scalar greater than 0 and no larger than 1.');
+end
 
 if isequal(selectedPCs, [1 2])
     disp('Computing spatial activation clustering for 2 principal components (default).');
@@ -183,6 +219,7 @@ disp('Computing Spatial Activation Patterns');
 
 % Preallocate: thresholded activations used for clustering/plots
 thresholdedActivations = zeros(nVoxels, length(selectedPCs));
+activationThresholds = zeros(1, length(selectedPCs));
 
 % Loop over the selected PCs, storing them in the requested order
 for pcCol = 1:length(selectedPCs)
@@ -194,6 +231,7 @@ for pcCol = 1:length(selectedPCs)
         warning('Using the input threshold for activation patterns. Ensure it suits your data.');
         pcThreshold = activationThresh;
     end
+    activationThresholds(pcCol) = pcThreshold;
 
     % Apply threshold per voxel: keep original weight if above threshold, else 0
     for voxelIdx = 1:nVoxels
@@ -214,6 +252,7 @@ zscoreActivations = (thresholdedActivations - mean(thresholdedActivations)) ./ s
 clusterAssignmentsAll = zeros(nVoxels + 1, length(clusterRange)); % first row stores k itself
 withinClusterSums     = zeros(length(clusterRange), 2);            % [k, sum(sumD)]
 clusterCentroidsAll   = cell(1, length(clusterRange));             % centroids per k
+clusterSummariesAll   = cell(1, length(clusterRange));             % breadth-based summary per k
 
 % Set the random seed for reproducibility
 rng(42, 'twister');
@@ -225,6 +264,12 @@ for kIdx = 1:length(clusterRange)
     % (Random initializations; same concept as original)
     [clusterLabels, centroids, sumD] = kmeans(zscoreActivations, kVal, 'Replicates', 100);
 
+    % K-means cluster numbers are arbitrary. Relabel each solution so the
+    % broadest network representations appear first and background last.
+    [clusterLabels, centroids, sumD, clusterSummary] = order_clusters_by_network_breadth( ...
+        clusterLabels, centroids, sumD, thresholdedActivations, ...
+        selectedPCs, representationThreshold);
+
     % Store k and assignments
     clusterAssignmentsAll(1, kIdx)   = kVal;
     clusterAssignmentsAll(2:end,kIdx)= clusterLabels;
@@ -234,6 +279,7 @@ for kIdx = 1:length(clusterRange)
 
     % Store centroids
     clusterCentroidsAll{kIdx} = centroids;
+    clusterSummariesAll{kIdx} = clusterSummary;
 end
 
 % Convert to user-friendly tables (columns labeled by k)
@@ -242,6 +288,11 @@ varNamesByK = matlab.lang.makeValidName(rawNames);
 SPATIAL_CLUSTERING.idx       = array2table(clusterAssignmentsAll(2:end,:), 'VariableNames', varNamesByK);
 SPATIAL_CLUSTERING.SUM       = array2table(withinClusterSums(:,2)', 'VariableNames', varNamesByK);
 SPATIAL_CLUSTERING.Centroids = cell2table(clusterCentroidsAll, 'VariableNames', varNamesByK);
+SPATIAL_CLUSTERING.ClusterSummaryAll = cell2table(clusterSummariesAll, 'VariableNames', varNamesByK);
+SPATIAL_CLUSTERING.RepresentationThreshold = representationThreshold;
+SPATIAL_CLUSTERING.ActivationThresholds = array2table(activationThresholds, ...
+    'VariableNames', matlab.lang.makeValidName(strcat('BN', cellstr(num2str(selectedPCs(:))))));
+SPATIAL_CLUSTERING.SelectedComponents = selectedPCs;
 
 % -------- Elbow plot (sum of distances vs number of clusters) -----------
 figure;
@@ -281,6 +332,7 @@ SPATIAL_CLUSTERING.optimalK = optimalK;
 coordinates = load('MNI152_8mm_coord_dyi.mat'); % must contain coordinates.MNI8 (voxels × 3)
 optimalCol  = find(clusterAssignmentsAll(1,:) == optimalK, 1, 'first');
 clustersForOptimalK = clusterAssignmentsAll(2:end, optimalCol);   % voxel-wise labels 1..optimalK
+SPATIAL_CLUSTERING.ClusterSummary = clusterSummariesAll{optimalCol};
 
 % Build headers for a potential table per cluster: [VoxelIdx, X, Y, Z, PC1, PC2, ...]
 tableHeaders = cell(1, 4 + length(selectedPCs));
@@ -423,7 +475,8 @@ for cl = 1:optimalK
     set(clusterAxes, 'YColor', 'none');
     box(clusterAxes, 'off');
     grid(clusterAxes, 'off');
-    title(clusterAxes, ['Cluster ' num2str(cl)]);
+    title(clusterAxes, ['Cluster ' num2str(cl) ' — ' ...
+        SPATIAL_CLUSTERING.ClusterSummary.NetworkCombination{cl}]);
 
     if ~isempty(clusterPlotPath)
         outputFile = fullfile(clusterPlotPath, ...
@@ -592,14 +645,14 @@ else
         disp('Generating 3D cluster maps (one brain per cluster, membership only)...');
 
         skipper       = 1;                % downsampling step
-        scale_size    = 6;                % dot size (try 4–8 for visibility)
+        scale_size    = brainMarkerSize;  % user-adjustable dot size
         templateFigFn = 'BrainTemplate_GT.fig';
 
         % actual cluster labels present
         labels   = clustersForOptimalK(:);
         uniqLabs = unique(labels(:)');    % e.g. could be [0 1 2] or [2 3 4]
         nLabs    = numel(uniqLabs);
-        cmap     = jet(nLabs) * 0.9;      % one color per label
+        cmap     = jet(nLabs) * brainColorIntensity; % one color per label
 
         for li = 1:nLabs
             clLab   = uniqLabs(li);
@@ -640,14 +693,86 @@ else
             % styling / view
             axis(ax,'tight'); axis(ax,'equal'); axis(ax,'vis3d'); axis(ax,'off');
             rotate3d(ax,'on'); camlight(ax,'headlight'); lighting(ax,'gouraud');
-            title(ax, sprintf('3D Cluster Map — OptimalK=%d — Cluster %g (n=%d voxels)', ...
-                  optimalK, clLab, nnz(voxMask)), ...
+            title(ax, sprintf('3D Cluster Map — OptimalK=%d — Cluster %g: %s (n=%d voxels)', ...
+                  optimalK, clLab, SPATIAL_CLUSTERING.ClusterSummary.NetworkCombination{clLab}, nnz(voxMask)), ...
                   'FontSize', 14, 'FontWeight', 'bold');
         end
     end
 end
 
 %% ------------------------ Helper: parse name/values ---------------------
+
+function [newLabels, newCentroids, newSumD, summary] = order_clusters_by_network_breadth( ...
+        oldLabels, oldCentroids, oldSumD, thresholdedActivations, ...
+        selectedPCs, representationThreshold)
+
+    nClusters = size(oldCentroids,1);
+    nNetworks = length(selectedPCs);
+    support = zeros(nClusters,nNetworks);
+    normalizedStrength = zeros(nClusters,nNetworks);
+    signedMean = zeros(nClusters,nNetworks);
+    voxelCount = zeros(nClusters,1);
+    firstVoxel = zeros(nClusters,1);
+
+    networkScale = max(abs(thresholdedActivations),[],1);
+    networkScale(networkScale == 0) = 1;
+
+    for cluster = 1:nClusters
+        clusterMask = oldLabels == cluster;
+        clusterValues = thresholdedActivations(clusterMask,:);
+        voxelCount(cluster) = sum(clusterMask);
+        firstVoxel(cluster) = find(clusterMask,1,'first');
+        support(cluster,:) = mean(clusterValues ~= 0,1);
+        normalizedStrength(cluster,:) = mean(abs(clusterValues),1) ./ networkScale;
+        signedMean(cluster,:) = mean(clusterValues,1);
+    end
+
+    representedNetworks = support >= representationThreshold;
+    networkBreadth = sum(representedNetworks,2);
+    totalSupport = sum(support,2);
+    totalStrength = sum(normalizedStrength,2);
+
+    % Sort descending by breadth, total support, strength, and individual
+    % network representation. The first voxel is a deterministic final
+    % tie-breaker that is independent of the arbitrary original label.
+    sortValues = [networkBreadth totalSupport totalStrength ...
+        representedNetworks normalizedStrength -firstVoxel];
+    [~,newToOld] = sortrows(sortValues, -(1:size(sortValues,2)));
+
+    oldToNew = zeros(nClusters,1);
+    oldToNew(newToOld) = 1:nClusters;
+    newLabels = oldToNew(oldLabels);
+    newCentroids = oldCentroids(newToOld,:);
+    newSumD = oldSumD(newToOld,:);
+
+    networkCombination = cell(nClusters,1);
+    for newCluster = 1:nClusters
+        oldCluster = newToOld(newCluster);
+        representedPCs = selectedPCs(representedNetworks(oldCluster,:));
+        if isempty(representedPCs)
+            networkCombination{newCluster} = 'None/background';
+        else
+            networkNames = arrayfun(@(pc) ['BN' num2str(pc)], ...
+                representedPCs, 'UniformOutput', false);
+            networkCombination{newCluster} = strjoin(networkNames,' + ');
+        end
+    end
+
+    summary = table((1:nClusters)', newToOld(:), voxelCount(newToOld), ...
+        networkBreadth(newToOld), totalSupport(newToOld), ...
+        totalStrength(newToOld), networkCombination, ...
+        'VariableNames', {'Cluster','OriginalCluster','VoxelCount', ...
+        'RepresentedNetworks','TotalSupport','TotalNormalizedStrength', ...
+        'NetworkCombination'});
+
+    for network = 1:nNetworks
+        networkName = ['BN' num2str(selectedPCs(network))];
+        summary.([networkName '_Represented']) = representedNetworks(newToOld,network);
+        summary.([networkName '_Support']) = support(newToOld,network);
+        summary.([networkName '_NormalizedStrength']) = normalizedStrength(newToOld,network);
+        summary.([networkName '_SignedMean']) = signedMean(newToOld,network);
+    end
+end
 
 function opts = parse_name_value_pairs(opts, varargin)
     if mod(length(varargin), 2) ~= 0
