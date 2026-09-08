@@ -101,14 +101,10 @@ clear
 close all
 clc
 
-% Set up portable local folders relative to this example script. The Data
-% and Output folders remain outside the toolbox code and are ignored by Git.
-project_path = fileparts(mfilename('fullpath'));
-analysis_path = fileparts(project_path);
-data_path = fullfile(analysis_path, 'Data');
-output_path = fullfile(analysis_path, 'Output');
-if ~exist(data_path, 'dir'), mkdir(data_path); end
-if ~exist(output_path, 'dir'), mkdir(output_path); end
+% Setup directories relative to this example script
+project_path = '/Users/au550322/Documents/GitHub/BROADNESS_MEG_AuditoryRecognition/BROADNESS_Toolbox';
+data_path = '/Users/au550322/Documents/GitHub/BROADNESS_MEG_AuditoryRecognition/Data';
+output_path = [project_path '/Output'];
 addpath(project_path)
 BROADNESS_Startup(project_path);
 
