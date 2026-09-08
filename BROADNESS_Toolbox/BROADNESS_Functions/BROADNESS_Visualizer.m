@@ -1,4 +1,4 @@
-function BROADNESS_Visualizer(BROADNESS, Options)
+function FIGURES = BROADNESS_Visualizer(BROADNESS, Options)
 
 % ========================================================================
 %  BROADBAND BRAIN NETWORK ESTIMATION VIA SOURCE SEPARATION (BROADNESS) TOOLBOX
@@ -87,6 +87,17 @@ function BROADNESS_Visualizer(BROADNESS, Options)
 %                               If not supplied, default colors will be provided. 
 %      - Options.color_conds  : Array with RGB color for experimental conditions (e.g. [1 0 1; 1 1 0; 0.5 0.6 0.2]).
 %                               If not supplied, default colors will be provided. 
+%      - Options.FigureMode   : 'off', 'show', 'save', or 'both' (default: 'show').
+%      - Options.FigureLayout : 'individual', 'summary', or 'both' (default: 'individual').
+%      - Options.OutputPath   : Base output folder required when figures are saved.
+%                               Options.name_nii is used if OutputPath is absent.
+%      - Options.FigureFormats: Format or cell array containing 'png', 'pdf', and/or 'fig'
+%                               (default: {'png'}).
+%      - Options.FigurePrefix : Optional prefix for saved figure filenames.
+%
+%  OUTPUT:
+%  - FIGURES.Handles          : Handles of figures left visible.
+%  - FIGURES.Files            : Paths of figures saved to disk.
 %
 %
 %
@@ -141,6 +152,7 @@ end
 % Compute mean and standard deviation if data is provided for single participants
 sz = size(data);
 non_singleton_dims = sum(sz > 1); %trick to get if the matrix is a vector
+TimeSeries_stde = [];
 if non_singleton_dims == 4 %data provided for single participants
     TimeSeries_stde = std(TimeSeries,[],4) ./ sqrt(size(TimeSeries,4));    
     TimeSeries = mean(TimeSeries,4);
@@ -155,8 +167,26 @@ if ~isfield(Options,'WhichPlots') % if request of which plots should be prepared
     Options.WhichPlots = ones(1,5);  % Assigning default
 end
 
+if ~isfield(Options,'FigureMode'), Options.FigureMode = 'show'; end
+if ~isfield(Options,'FigureLayout'), Options.FigureLayout = 'individual'; end
+if ~isfield(Options,'FigureFormats'), Options.FigureFormats = {'png'}; end
+if ~isfield(Options,'FigurePrefix'), Options.FigurePrefix = ''; end
+if isfield(Options,'OutputPath')
+    figureOutputPath = Options.OutputPath;
+elseif isfield(Options,'name_nii')
+    figureOutputPath = Options.name_nii;
+else
+    figureOutputPath = [];
+end
+figureSettings = BROADNESS_FigureSettings(Options.FigureMode, ...
+    Options.FigureLayout, figureOutputPath, Options.FigureFormats, ...
+    Options.FigurePrefix, 'Visualizer');
+figureHandles = gobjects(0);
+figureFiles = {};
+
 % Checking if MNI coordinates are provided
-if Options.WhichPlots(4) == 1 && ~isfield(Options,'MNI_coords')
+if Options.WhichPlots(4) == 1 && ~strcmp(figureSettings.Mode, 'off') && ...
+        ~isfield(Options,'MNI_coords')
     error('MNI coordinates must be provided for 3d plotting in brain template.. (Options.WhichPlots = [0 0 0 1 0])')
 end
 
@@ -230,35 +260,47 @@ end
 
 %% 1)Dynamic brain activity map of the original data
 
-if Options.WhichPlots(1) == 1
+if Options.WhichPlots(1) == 1 && ~strcmp(figureSettings.Mode, 'off')
     
     % Plotting data using imagesc (sort of raster plots)
     disp('Generating dynamic brain activity plots...');
 
-    data = mean(data,4); % Average across participants (if single-participant data was provided)
+    dataToPlot = mean(data,4); % Average across participants (if single-participant data was provided)
     % Computing global min and max
-    MAX = max(data(:));
-    MIN = min(data(:));
+    MAX = max(dataToPlot(:));
+    MIN = min(dataToPlot(:));
     % Computing symmetric scaling limit based on max absolute value
     maxAbs = max(abs([MIN, MAX]));
     cLim = [-maxAbs, maxAbs];
     
-    % Plotting each experimental condition with consistent color scaling
-    for condi = 1:size(data, 3) % Over experimental condition (or whatever the user placed in the 3rd dimension of the original data)
-        figure
-        imagesc(time, 1:size(data,1), data(:,:,condi));
-        set(gcf, 'Color', 'w');
-        colorbar;
-        caxis(cLim);  % Applying symmetric color scale
-        title(['Dynamic Brain Activity - ' Labels{condi}], 'FontWeight', 'bold', 'FontSize', 14);
-        xlabel('Time (s)'); ylabel('Brain sources');
+    if figureSettings.MakeIndividual
+        for condi = 1:size(dataToPlot,3)
+            fig = figure('Visible', figureSettings.Visible, 'Color', 'w');
+            plot_dynamic_activity(gca, dataToPlot(:,:,condi), time, cLim, Labels{condi});
+            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+                ['DynamicActivity_Condition_' num2str(condi,'%02d')])]; %#ok<AGROW>
+            if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
+        end
+    end
+    if figureSettings.MakeSummary
+        fig = figure('Visible', figureSettings.Visible, 'Color', 'w', ...
+            'Position', [100 100 1100 700]);
+        layout = tiledlayout(fig, 'flow', 'TileSpacing', 'compact', 'Padding', 'compact');
+        title(layout, 'Dynamic Brain Activity');
+        for condi = 1:size(dataToPlot,3)
+            plot_dynamic_activity(nexttile(layout), dataToPlot(:,:,condi), ...
+                time, cLim, Labels{condi});
+        end
+        figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+            'DynamicActivity_Summary')];
+        if figureSettings.Show, figureHandles(end+1) = fig; end
     end
 end
 
     
 %% 2)Variance explained by the networks
 
-if Options.WhichPlots(2) == 1
+if Options.WhichPlots(2) == 1 && ~strcmp(figureSettings.Mode, 'off')
     
     if ~isPCA
         warning('Variance field not found (likely because you provided ICA results).. Skipping variance plot');
@@ -266,31 +308,11 @@ if Options.WhichPlots(2) == 1
         
         disp('Generating variance explained plot...');
         
-        figure
-        % Plotting actual data with line + marker (e.g. star marker)
-        plot(BROADNESS.Variance_BrainNetworks(1:ncomps_var), ...
-            '-*', ...                         % line + star marker
-            'DisplayName', 'Data', ...
-            'LineWidth', 1.5, ...
-            'MarkerSize', 6);
-        hold on
-        
-        % If MCS permutations available, plotting them too
-        if ~ischar(BROADNESS.Significant_BrainNetworks)
-            plot(BROADNESS.VariancePermutations(1:ncomps_var), ...
-                '-o', ...                     % line + circle marker
-                'DisplayName', 'Random', ...
-                'LineWidth', 1.5, ...
-                'MarkerSize', 5);
-        end
-        
-        % Additional setting for the plot
-        grid minor
-        legend('show', 'Location', 'northeast')
-        set(gcf, 'Color', 'w')
-        title('Variance Explained by Principal Components', 'FontWeight', 'bold', 'FontSize', 14);
-        xlabel('Component #');
-        ylabel('% Variance Explained');
+        fig = figure('Visible', figureSettings.Visible, 'Color', 'w');
+        plot_variance(gca, BROADNESS, ncomps_var);
+        figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+            'VarianceExplained')];
+        if figureSettings.Show, figureHandles(end+1) = fig; end
     end
 
 end
@@ -298,92 +320,59 @@ end
 
 %% Time series of the networks
 
-if Options.WhichPlots(3) == 1
+if Options.WhichPlots(3) == 1 && ~strcmp(figureSettings.Mode, 'off')
     
     disp('Generating time series plots for brain networks...');
     
-    for compi = 1:length(ncomps) %over selected PCs
-
-        figure; hold on; set(gcf,'color','w');
-        grid minor
-        t = time; t = t(:);
-        for condi = 1:size(data,3)
-            mu = TimeSeries(:,ncomps(compi),condi);
-            if non_singleton_dims == 4 % data provided for single participants
-                se = TimeSeries_stde(:,ncomps(compi),condi);
-                mu = mu(:); se = se(:);
-                fill([t; flipud(t)], [mu+se; flipud(mu-se)], col_cond(condi,:), 'FaceAlpha',0.25, 'EdgeColor','none', 'HandleVisibility','off');
-            end
-            plot(t, mu, 'Color', col_cond(condi,:), 'LineWidth',2, 'DisplayName', Labels{condi});
+    if figureSettings.MakeIndividual
+        for compi = 1:length(ncomps)
+            fig = figure('Visible', figureSettings.Visible, 'Color', 'w');
+            plot_network_timeseries(gca, time, TimeSeries, non_singleton_dims, ...
+                TimeSeries_stde, ncomps(compi), col_cond, Labels, isPCA, BROADNESS);
+            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+                ['NetworkTimeSeries_Network_' num2str(ncomps(compi),'%02d')])]; %#ok<AGROW>
+            if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
         end
-        xlim([t(1) t(end)]);
-        legend('show')
-        box on
-
-        if isPCA
-            title(['Time Series - Brain Networks # ' num2str(ncomps(compi)) ...
-                ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(ncomps(compi)))], ...
-                'FontWeight','bold','FontSize',14);
-        else
-            title(['Time Series - Brain Networks # ' num2str(ncomps(compi))], ...
-                'FontWeight','bold','FontSize',14);
+    end
+    if figureSettings.MakeSummary
+        fig = figure('Visible', figureSettings.Visible, 'Color', 'w', ...
+            'Position', [100 100 1200 750]);
+        layout = tiledlayout(fig, 'flow', 'TileSpacing', 'compact', 'Padding', 'compact');
+        title(layout, 'Brain Network Time Series');
+        for compi = 1:length(ncomps)
+            plot_network_timeseries(nexttile(layout), time, TimeSeries, ...
+                non_singleton_dims, TimeSeries_stde, ncomps(compi), ...
+                col_cond, Labels, isPCA, BROADNESS);
         end
-        %         title(['Time Series - Brain Networks # ' num2str(ncomps(compi)) ' - Var ' num2str(BROADNESS.Variance_BrainNetworks(ncomps(compi)))], 'FontWeight', 'bold', 'FontSize', 14);
-        
-        xlabel('Time (s)'); ylabel('Component Amplitude');
+        figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+            'NetworkTimeSeries_Summary')];
+        if figureSettings.Show, figureHandles(end+1) = fig; end
     end
 end
 
 
 %% 4)Activation patterns of the networks (3D) - in brain template
 
-if Options.WhichPlots(4) == 1
+if Options.WhichPlots(4) == 1 && ~strcmp(figureSettings.Mode, 'off')
     
     disp('Generating 3D topographic plots of brain networks...');
     
-    % Some default settings
-    skipper  = 1;          % parameter for donwsampling the visualization
-    scale_size = 100;      % scaling factor for activation patterns in the brain
-    
-    % Opening figure
-    openfig('BrainTemplate_MNI152_1mm_FullBrain.fig')
-    hold on
-    legend_handles = gobjects(1, length(ncomps)); % Preallocate legend handles
-    
-    for compi = 1:length(ncomps) %over selected PCs
-        % Assigning temporary activation pattern to plot
-        pat2plot = ActPat(:,ncomps(compi));
-        pat2plot( pat2plot < mean(pat2plot)+thresh_nsdt*std(pat2plot) ) = nan;  % apply threshold
-        pat2plot(isnan(Options.MNI_coords(:,1))) = nan;
-        
-        % Assigning temporary activation pattern to plot
-        mni2plot = Options.MNI_coords;
-        mni2plot(isnan(pat2plot(:,1)),:) = []; % clear from nans
-        pat2plot(isnan(pat2plot)) = [];   % repeat for activation patterns
-        % Re-scaling pattern to plot
-        %         pat2plot = pat2plot/max(pat2plot);  % option #1
-        pat2plot = (pat2plot-min(pat2plot))./(max(pat2plot)-min(pat2plot)).*(1-.01) + .01;  % option #2
-        
-        % Plotting in 3D
-        for voxi = 1:skipper:length(pat2plot)
-            plot3( mni2plot(voxi,1), mni2plot(voxi,2), mni2plot(voxi,3), '.', 'Color', col_comp(compi,:), 'MarkerSize', scale_size * pat2plot(voxi) );
-            hold on
+    if figureSettings.MakeIndividual
+        for compi = 1:length(ncomps)
+            fig = plot_brain_networks(ActPat, ncomps(compi), Options.MNI_coords, ...
+                col_comp(compi,:), thresh_nsdt, figureSettings.OpenFigureVisibility);
+            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+                ['SpatialPattern_Network_' num2str(ncomps(compi),'%02d')])]; %#ok<AGROW>
+            if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
         end
-        
-        % Using NaN to avoid plotting actual points, just storing color info
-        legend_handles(compi) = plot3(nan, nan, nan, '.', 'Color', col_comp(compi,:), 'MarkerSize', 12);    
     end
-   
-    % Adjusting legend properties
-    legend(legend_handles, arrayfun(@(x) sprintf('Component %d', x), ncomps, 'UniformOutput', false), ...
-        'FontSize', 14, ...  % Increasing font size
-        'Location', 'northeastoutside'); % Moving legend outside the plot area
-    set(legend_handles, 'MarkerSize', 20); % Increasing marker size in legend
-    rotate3d on; axis off; axis vis3d; axis equal % Allowing rotation and removing axes
-    set(gcf, 'Color', 'w'); % Setting figure background to white
-    camlight; lighting gouraud;
-    
-    title('3D Spatial Patterns of Brain Networks', 'FontSize', 16, 'FontWeight', 'bold')
+    if figureSettings.MakeSummary
+        fig = plot_brain_networks(ActPat, ncomps, Options.MNI_coords, ...
+            col_comp, thresh_nsdt, figureSettings.OpenFigureVisibility);
+        figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+            'SpatialPatterns_Summary')];
+        if figureSettings.Show, figureHandles(end+1) = fig; end
+    end
 end
 
 
@@ -517,4 +506,96 @@ if Options.WhichPlots(5) == 1
     end
 end
 
+FIGURES.Handles = figureHandles;
+FIGURES.Files = figureFiles;
+
+end
+
+function plot_dynamic_activity(ax, conditionData, time, colorLimits, conditionLabel)
+imagesc(ax, time, 1:size(conditionData,1), conditionData);
+colorbar(ax); caxis(ax, colorLimits);
+title(ax, conditionLabel, 'FontWeight', 'bold', 'FontSize', 13);
+xlabel(ax, 'Time (s)'); ylabel(ax, 'Brain sources'); box(ax, 'on');
+end
+
+function plot_variance(ax, BROADNESS, ncomps_var)
+hold(ax, 'on');
+plot(ax, BROADNESS.Variance_BrainNetworks(1:ncomps_var), '-*', ...
+    'DisplayName', 'Data', 'LineWidth', 1.5, 'MarkerSize', 6);
+if ~ischar(BROADNESS.Significant_BrainNetworks)
+    plot(ax, BROADNESS.VariancePermutations(1:ncomps_var), '-o', ...
+        'DisplayName', 'Random', 'LineWidth', 1.5, 'MarkerSize', 5);
+end
+grid(ax, 'minor'); box(ax, 'on'); legend(ax, 'show', 'Location', 'northeast');
+title(ax, 'Variance Explained by Principal Components', ...
+    'FontWeight', 'bold', 'FontSize', 14);
+xlabel(ax, 'Component #'); ylabel(ax, '% Variance Explained');
+end
+
+function plot_network_timeseries(ax, time, TimeSeries, non_singleton_dims, ...
+    TimeSeries_stde, component, colors, Labels, isPCA, BROADNESS)
+hold(ax, 'on'); grid(ax, 'minor'); box(ax, 'on');
+t = time(:);
+for condi = 1:size(TimeSeries,3)
+    mu = TimeSeries(:,component,condi);
+    if non_singleton_dims == 4
+        se = TimeSeries_stde(:,component,condi);
+        mu = mu(:); se = se(:);
+        fill(ax, [t; flipud(t)], [mu+se; flipud(mu-se)], colors(condi,:), ...
+            'FaceAlpha', 0.25, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+    end
+    plot(ax, t, mu, 'Color', colors(condi,:), 'LineWidth', 2, ...
+        'DisplayName', Labels{condi});
+end
+xlim(ax, [t(1) t(end)]); legend(ax, 'show');
+if isPCA
+    title(ax, ['Network ' num2str(component) ' — Variance ' ...
+        num2str(BROADNESS.Variance_BrainNetworks(component)) '%'], ...
+        'FontWeight', 'bold', 'FontSize', 13);
+else
+    title(ax, ['Network ' num2str(component)], ...
+        'FontWeight', 'bold', 'FontSize', 13);
+end
+xlabel(ax, 'Time (s)'); ylabel(ax, 'Component amplitude');
+end
+
+function fig = plot_brain_networks(ActPat, components, MNIcoords, colors, thresholdSD, visibility)
+fig = openfig('BrainTemplate_MNI152_1mm_FullBrain.fig', 'new', visibility);
+ax = findobj(fig, 'Type', 'axes');
+ax = ax(1);
+hold(ax, 'on');
+legendHandles = gobjects(1, length(components));
+for compi = 1:length(components)
+    pat2plot = ActPat(:,components(compi));
+    pat2plot(pat2plot < mean(pat2plot)+thresholdSD*std(pat2plot)) = nan;
+    pat2plot(isnan(MNIcoords(:,1))) = nan;
+    mni2plot = MNIcoords;
+    mni2plot(isnan(pat2plot),:) = [];
+    pat2plot(isnan(pat2plot)) = [];
+    if ~isempty(pat2plot)
+        valueRange = max(pat2plot)-min(pat2plot);
+        if valueRange == 0
+            pat2plot(:) = 1;
+        else
+            pat2plot = (pat2plot-min(pat2plot))./valueRange.*0.99 + 0.01;
+        end
+        for voxi = 1:length(pat2plot)
+            plot3(ax, mni2plot(voxi,1), mni2plot(voxi,2), mni2plot(voxi,3), '.', ...
+                'Color', colors(compi,:), 'MarkerSize', 100*pat2plot(voxi));
+        end
+    end
+    legendHandles(compi) = plot3(ax, nan, nan, nan, '.', ...
+        'Color', colors(compi,:), 'MarkerSize', 20);
+end
+legend(ax, legendHandles, arrayfun(@(x) sprintf('Network %d', x), components, ...
+    'UniformOutput', false), 'FontSize', 12, 'Location', 'northeastoutside');
+axis(ax, 'off'); axis(ax, 'vis3d'); axis(ax, 'equal'); rotate3d(fig, 'on');
+camlight(ax, 'headlight'); lighting(ax, 'gouraud');
+if length(components) == 1
+    title(ax, ['3D Spatial Pattern — Network ' num2str(components)], ...
+        'FontSize', 15, 'FontWeight', 'bold');
+else
+    title(ax, '3D Spatial Patterns of Brain Networks', ...
+        'FontSize', 15, 'FontWeight', 'bold');
+end
 end

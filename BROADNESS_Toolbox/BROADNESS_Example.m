@@ -202,8 +202,17 @@ ED = BROADNESS_EffectiveDimensionality(eigenspectrum);
 % Minimal user settings: output folder and MNI coordinates of original brain voxel data
 Options = [];
 Options.name_nii = output_path; %output folder
+Options.OutputPath = output_path; %base folder used when figures are saved
 load(fullfile(project_path, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
+
+% FigureMode can be 'off', 'show', 'save', or 'both'. FigureLayout can be
+% 'individual', 'summary', or 'both'. The defaults here show individual
+% publication-ready figures without saving them.
+Options.FigureMode = 'show';
+Options.FigureLayout = 'individual';
+% Use 'save' for an invisible batch export, 'both' to display and save, or
+% 'off' to suppress figure creation entirely.
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
@@ -224,6 +233,7 @@ BROADNESS_Visualizer(BROADNESS,Options)
 % Minimal user settings: output folder
 Options = [];
 Options.name_nii = output_path; %output folder
+Options.OutputPath = output_path;
 load(fullfile(project_path, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
 Options.WhichPlots = [0 0 1 0 0]; %which plots to be generated
@@ -250,6 +260,10 @@ Options.color_conds = [
     0.651,  0.463,  0.114;   % brown
     0.4,    0.4,    0.4      % gray
 ]; %RGB code colors for experimental conditions
+Options.FigureMode = 'both'; %display and save the selected figures
+Options.FigureLayout = 'both'; %individual figures plus a compact summary
+Options.FigureFormats = {'png','fig'}; %300-dpi previews and editable MATLAB figures
+Options.FigurePrefix = 'BROADNESS_Example';
 
 % The bundled 1mm MNI152 full-brain template includes the cerebellum, so
 % all source coordinates can be retained in the 3D visualization.
@@ -274,7 +288,10 @@ BROADNESS_Visualizer(BROADNESS,Options)
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'threshold',0.1,'video','off','figure','on');
+RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS, ...
+    'principalcomps', [1:2], 'threshold', 0.1, 'video', 'off', ...
+    'figuremode', 'both', 'figurelayout', 'both', ...
+    'outpath', output_path, 'figureformats', {'png','fig'});
 
 %%
 
@@ -326,7 +343,13 @@ Options.MNI_coords = MNI8;
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'mni_coords', Options.MNI_coords);
+SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(BROADNESS, ...
+    'principalcomps', [1:2], 'evalclusters', 1, ...
+    'mni_coords', Options.MNI_coords, 'outpath', output_path, ...
+    'figuremode', 'both', 'figurelayout', 'both', ...
+    'figureformats', {'png','fig'});
+% To save figures without also requesting NIFTI files, omit 'outpath' and
+% provide 'figureoutpath', output_path instead.
 
 %%
 

@@ -1,4 +1,4 @@
-function BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
+function FIGURES = BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
 %%
 % =========================================================================
 %  BROADBAND BRAIN NETWORK ESTIMATION VIA SOURCE SEPARATION (BROADNESS) TOOLBOX
@@ -59,11 +59,16 @@ function BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
 %    'XLimits'                  : Manual x-axis limits [min max]
 %    'STEStyle'                 : 1 = dotted SE, 2 = shaded SE (default = 2)
 %    'Transparency'             : Alpha for shaded SE (default = 0.3)
+%    'FigureMode'              : 'off', 'show', 'save', or 'both' (default = 'show')
+%    'FigureLayout'            : 'individual', 'summary', or 'both' (default = 'individual')
+%    'OutputPath'              : Base output folder required when figures are saved
+%    'FigureFormats'           : 'png', 'pdf', 'fig', or a cell array (default = {'png'})
+%    'FigurePrefix'            : Optional prefix for saved figure filenames
 %
 %  ------------------------------------------------------------------------
 %  OUTPUT:
 %  ------------------------------------------------------------------------
-%    One figure per network with condition averages and significance markings
+%    FIGURES structure containing visible figure handles and saved file paths
 %
 %
 % ------------------------------------------------------------------------
@@ -146,10 +151,20 @@ opts = struct( ...
     'YLimits', [], ...
     'XLimits', [], ...
     'STEStyle', 2, ...
-    'Transparency', 0.3);
+    'Transparency', 0.3, ...
+    'FigureMode', 'show', ...
+    'FigureLayout', 'individual', ...
+    'OutputPath', [], ...
+    'FigureFormats', {{'png'}}, ...
+    'FigurePrefix', '');
 
 % Parse user-defined name-value pairs and override defaults
 opts = parse_name_value_pairs(opts, varargin{:});
+
+figureSettings = BROADNESS_FigureSettings(opts.FigureMode, opts.FigureLayout, ...
+    opts.OutputPath, opts.FigureFormats, opts.FigurePrefix, 'ActivationTimeseries');
+figureHandles = gobjects(0);
+figureFiles = {};
 
 
 %% ----------------------------
@@ -328,8 +343,29 @@ end
 %% ----------------------------
 % STEP 4: Plotting
 % ----------------------------
+if strcmp(figureSettings.Mode, 'off')
+    FIGURES.Handles = figureHandles;
+    FIGURES.Files = figureFiles;
+    return
+end
+
+summaryFigure = [];
+summaryLayout = [];
+if figureSettings.MakeSummary
+    summaryFigure = figure('Visible', figureSettings.Visible, 'Color', 'w', ...
+        'Position', [100 100 1200 750]);
+    summaryLayout = tiledlayout(summaryFigure, 'flow', ...
+        'TileSpacing', 'compact', 'Padding', 'compact');
+    title(summaryLayout, 'Brain Network Activation Time Series');
+end
+
 for net = 1:nNet
-    figure; hold on;
+    individualVisibility = figureSettings.Visible;
+    if ~figureSettings.MakeIndividual
+        individualVisibility = 'off';
+    end
+    networkFigure = figure('Visible', individualVisibility, 'Color', 'w');
+    hold on;
 %     title(['Brain Network ' num2str(net)]);  % Title for each network
     
     all_vals = [];  % Store all y-values for axis scaling
@@ -372,7 +408,7 @@ for net = 1:nNet
     
     % Set Y-limits
     if isempty(opts.YLimits)
-        margin = 0.05 * range(all_vals);
+        margin = 0.05 * (max(all_vals)-min(all_vals));
         ylims = [min(all_vals)-margin, max(all_vals)+margin];
         ylim(ylims);
     else
@@ -467,7 +503,36 @@ for net = 1:nNet
     set(gcf,'Color','w');
     box on;
     grid minor;
+
+    if figureSettings.MakeSummary
+        sourceAxes = gca;
+        summaryAxes = nexttile(summaryLayout);
+        copyobj(sourceAxes.Children, summaryAxes);
+        xlim(summaryAxes, xlim(sourceAxes));
+        ylim(summaryAxes, ylim(sourceAxes));
+        xlabel(summaryAxes, 'Time (s)'); ylabel(summaryAxes, 'Amplitude');
+        title(summaryAxes, ['Network ' num2str(net)]);
+        box(summaryAxes, 'on'); grid(summaryAxes, 'minor');
+        legend(summaryAxes, 'show', 'Location', 'best');
+    end
+
+    if figureSettings.MakeIndividual
+        figureFiles = [figureFiles; BROADNESS_FinalizeFigure(networkFigure, ...
+            figureSettings, ['Network_' num2str(net,'%02d')])]; %#ok<AGROW>
+        if figureSettings.Show, figureHandles(end+1) = networkFigure; end %#ok<AGROW>
+    else
+        close(networkFigure)
+    end
 end
+
+if figureSettings.MakeSummary
+    figureFiles = [figureFiles; BROADNESS_FinalizeFigure(summaryFigure, ...
+        figureSettings, 'Networks_Summary')];
+    if figureSettings.Show, figureHandles(end+1) = summaryFigure; end
+end
+
+FIGURES.Handles = figureHandles;
+FIGURES.Files = figureFiles;
 end
 
 %% ----------------------------
@@ -490,4 +555,3 @@ for i = 1:2:length(varargin)
     end
 end
 end
-
