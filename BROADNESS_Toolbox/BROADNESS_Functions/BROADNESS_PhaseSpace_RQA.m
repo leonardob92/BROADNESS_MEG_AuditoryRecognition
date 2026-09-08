@@ -51,6 +51,11 @@ function [RQA_BROADNESS, FIGURES] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin
 %      - 'principalcomps'               : Vector of PC indices to use in phase space (default: 1:10)
 %      - 'timeinterval'                 : [start_time end_time] in seconds for analysis (default: full range)
 %      - 'threshold'                    : Fraction of max distance to define recurrences (default: 0.1)
+%      - 'normalization'                : Scaling applied to the selected phase-space dimensions:
+%                                         'none' (default) preserves the original PCA/ICA scores;
+%                                         'pooled_zscore' uses one mean and standard deviation per
+%                                         selected component, pooled across the analysed time-points,
+%                                         conditions, and participants
 %      - 'theiler_window'               : Theiler window in samples. Use 0 to exclude only the main diagonal,
 %                                         or a positive integer to exclude a wider diagonal band.
 %                                         Default: [] (disabled; main diagonal retained)
@@ -73,6 +78,7 @@ function [RQA_BROADNESS, FIGURES] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin
 %      - .PhaseSpace.PCs                       : Brain-network components used as dimensions
 %      - .PhaseSpace.ParticipantCoordinates    : Cell array of participant trajectories
 %      - .PhaseSpace.MeanCoordinates           : Cell array of participant-averaged trajectories
+%      - .PhaseSpace.Normalization              : Applied method and common center/scale parameters
 %      - .RecurrencePlots.DistMat               : Cell array of distance matrices
 %      - .RecurrencePlots.RecurPlot             : Cell array of recurrence plots (i.e., thresholded distance matrices)
 %      - .RQA_metrics                           : Table of 8 RQA measures
@@ -117,7 +123,7 @@ disp('Checking inputs')
 
 % Defaults
 opts = struct('principalcomps', 1:2, 'timeinterval', [], 'threshold', 0.1, ...
-    'theiler_window', [], 'video', 'off', 'figure', 'off', ...
+    'normalization', 'none', 'theiler_window', [], 'video', 'off', 'figure', 'off', ...
     'figuremode', [], 'figurelayout', 'individual', 'outputpath', [], ...
     'outpath', [], ...
     'figureformats', {{'png'}}, 'figureprefix', '');
@@ -127,6 +133,7 @@ opts = parse_name_value_pairs(opts, varargin{:});
 PCs          = opts.principalcomps;
 time_seconds = opts.timeinterval;
 eps          = opts.threshold;
+normalization = lower(char(string(opts.normalization)));
 theiler_window = opts.theiler_window;
 video        = opts.video;
 figurel      = opts.figure;
@@ -172,6 +179,9 @@ if ~(isnumeric(PCs) && isvector(PCs))
 end
 if ~isnumeric(eps) || ~isscalar(eps) || ~isfinite(eps)
     error('"threshold" must be a finite numeric scalar.');
+end
+if ~ismember(normalization, {'none','pooled_zscore'})
+    error('"normalization" must be ''none'' or ''pooled_zscore''.');
 end
 if ~isempty(theiler_window) && (~isnumeric(theiler_window) || ~isscalar(theiler_window) || ...
         ~isfinite(theiler_window) || theiler_window < 0 || fix(theiler_window) ~= theiler_window)
@@ -234,6 +244,35 @@ nT   = size(TimeSeries,1);
 nPC  = size(TimeSeries,2);
 nCond = size(TimeSeries,3);
 nPart = size(TimeSeries,4);
+
+% Optionally place all selected dimensions on a common standardized scale.
+% Crucially, the same center and scale are used for every condition and
+% participant, so between-condition and between-group differences are not
+% removed by condition-specific or participant-specific normalization.
+normalizationCenter = zeros(1,length(PCs));
+normalizationScale = ones(1,length(PCs));
+if strcmp(normalization, 'pooled_zscore')
+    for pcColumn = 1:length(PCs)
+        pooledValues = TimeSeries(reduced_time_idx, PCs(pcColumn), :, :);
+        pooledValues = pooledValues(:);
+        if any(~isfinite(pooledValues))
+            error(['Pooled z-score normalization requires finite values in ' ...
+                'all selected time series.']);
+        end
+        normalizationCenter(pcColumn) = mean(pooledValues);
+        normalizationScale(pcColumn) = std(pooledValues, 0);
+        if ~isfinite(normalizationScale(pcColumn)) || ...
+                normalizationScale(pcColumn) <= builtin('eps', ...
+                max(1,max(abs(pooledValues))))
+            error(['Pooled z-score normalization cannot be applied because ' ...
+                'brain network ' num2str(PCs(pcColumn)) ...
+                ' has zero or near-zero variance.']);
+        end
+        TimeSeries(:,PCs(pcColumn),:,:) = ...
+            (TimeSeries(:,PCs(pcColumn),:,:) - normalizationCenter(pcColumn)) ...
+            ./ normalizationScale(pcColumn);
+    end
+end
 
 % 1) Per-participant phase spaces (so nothing is lost if you need them later)
 phase_space_participants = cell(nCond, nPart);
@@ -543,6 +582,11 @@ RQA_BROADNESS.PhaseSpace.MeanCoordinates        = phase_space;
 RQA_BROADNESS.PhaseSpace.nConditions            = nCond;
 RQA_BROADNESS.PhaseSpace.nParticipants          = nPart;
 RQA_BROADNESS.PhaseSpace.nDimensions            = length(PCs);
+RQA_BROADNESS.PhaseSpace.Normalization.Method    = normalization;
+RQA_BROADNESS.PhaseSpace.Normalization.Center    = normalizationCenter;
+RQA_BROADNESS.PhaseSpace.Normalization.Scale     = normalizationScale;
+RQA_BROADNESS.PhaseSpace.Normalization.Reference = ...
+    'Selected time-points pooled across all conditions and participants';
 
 % NEW: Per-participant recurrence plots + metrics
 RQA_BROADNESS.RecurrencePlots.DistMat   = RP_participants;        % cell(nCond,nPart)
