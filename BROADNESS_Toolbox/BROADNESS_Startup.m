@@ -19,7 +19,7 @@ function BROADNESS_Startup(path_home)
 %  subfolder structure of the BROADNESS toolbox unchanged.
 %
 %  Example usage:
-%       path_home = '/Users/au550322/Documents/AarhusUniversitet/MattiaRosso/Paper_BROADNESS_PCA/CodeData/MIBSummerSchool2025';
+%       path_home = '/your/local/path/BROADNESS_Toolbox';
 %       addpath(path_home)
 %       BROADNESS_Startup(path_home);
 %
@@ -41,8 +41,8 @@ function BROADNESS_Startup(path_home)
 
 % Add main toolbox directories and NIFTI tools subfolder to MATLAB path
 addpath(path_home);
-addpath([path_home '/BROADNESS_Functions/'])
-addpath([path_home '/BROADNESS_External/'])
-addpath([path_home '/BROADNESS_External/NIfTI_20140122']);
+addpath(fullfile(path_home, 'BROADNESS_Functions'))
+addpath(fullfile(path_home, 'BROADNESS_External'))
+addpath(fullfile(path_home, 'BROADNESS_External', 'NIfTI_20140122'));
 
 end

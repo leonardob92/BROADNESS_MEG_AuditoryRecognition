@@ -14,7 +14,7 @@ function Settings = BROADNESS_FigureSettings(figureMode, figureLayout, outputPat
 %  figureFormats: Character vector, string, or cell array containing
 %                 'png', 'pdf', and/or 'fig'
 %  figurePrefix : Optional prefix added to every saved filename
-%  functionFolder: Subfolder created inside BROADNESS_Figures
+%  functionFolder: Subfolder created inside OutputPath/BROADNESS_Figures
 %
 % ========================================================================
 
@@ -72,7 +72,7 @@ if Settings.Save
         error('An output path is required when "FigureMode" is ''save'' or ''both''.')
     end
     Settings.OutputFolder = fullfile(char(string(outputPath)), ...
-        'BROADNESS_Output', 'BROADNESS_Figures', functionFolder);
+        'BROADNESS_Figures', functionFolder);
     if ~exist(Settings.OutputFolder, 'dir')
         mkdir(Settings.OutputFolder);
     end

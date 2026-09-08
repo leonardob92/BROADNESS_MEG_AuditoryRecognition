@@ -27,8 +27,7 @@ function [SPATIAL_CLUSTERING, FIGURES] = BROADNESS_SpatialActivationClustering(B
 %     least represented/background solution
 %   - Saves cluster information, centroids, and NIFTI images (if path provided)
 %   - Optionally generates 2D/3D scatterplots of voxels colored by cluster
-%   - Generates one-dimensional voxel activation plots for the optimal clusters
-%   - Optionally generates 3D plots in a brain template of the different clusters
+%   - Pairs each optimal cluster's voxel activation plot with its 3D anatomical map
 %
 % ------------------------------------------------------------------------
 %  INPUT ARGUMENTS:
@@ -45,7 +44,7 @@ function [SPATIAL_CLUSTERING, FIGURES] = BROADNESS_SpatialActivationClustering(B
 %      - 'representation_threshold'        : Minimum proportion of suprathreshold voxels required for a
 %                                            network to be represented in a cluster (default: 0.50)
 %      - 'scatterplots'                    : Set to 'all' to plot cluster results for all k
-%      - 'outpath'                         : If provided, saves NIFTI maps and cluster activation plots (default: [])
+%      - 'OutputPath'                      : Base output folder for saved figures and NIFTI maps (default: [])
 %      - 'mni_coords'                      : MNI coordinates (Nvoxels x 3) for 3D plotting in brain template
 %                                            If empty, trying to read a default from files in 'External' function. This is in MNI space 8mm (LBPD order)
 %      - 'brainmarkersize'                 : Marker size for 3D cluster maps (default: 8)
@@ -53,10 +52,10 @@ function [SPATIAL_CLUSTERING, FIGURES] = BROADNESS_SpatialActivationClustering(B
 %                                            (default: 0.75)
 %      - 'figuremode'                      : 'off', 'show', 'save', or 'both' (default: 'off')
 %      - 'figurelayout'                    : 'individual', 'summary', or 'both' (default: 'individual')
-%      - 'figureoutpath'                   : Optional figure-only output folder. If empty, 'outpath'
-%                                            is used when figures are saved (default: [])
 %      - 'figureformats'                   : 'png', 'pdf', 'fig', or a cell array (default: {'png'})
 %      - 'figureprefix'                    : Optional prefix for saved figure filenames
+%      - 'outpath'                         : Deprecated alias for 'OutputPath'
+%      - 'figureoutpath'                   : Deprecated figure-only alias retained for compatibility
 %
 % ------------------------------------------------------------------------
 %  OUTPUT:
@@ -82,7 +81,7 @@ function [SPATIAL_CLUSTERING, FIGURES] = BROADNESS_SpatialActivationClustering(B
 %    activation patterns. Anatomical proximity between voxels is not used
 %    by k-means.
 %
-%  - If 'outpath' is specified, the function saves NIFTI masks for each cluster
+%  - If 'OutputPath' is specified, the function saves NIFTI masks for each cluster
 %    (only for the optimal k) using an 8mm MNI template.
 %
 %  - K-means clustering is repeated multiple times (Replicates = 100) for stability.
@@ -141,13 +140,14 @@ params = struct( ...
     'thresh', [], ...           % per-PC abs(weight) threshold; default mean+std
     'representation_threshold', 0.50, ... % minimum within-cluster support for a represented network
     'scatterplots', [], ...     % [] (only optimal k), or 'all'
-    'outpath', [], ...           % folder to save NIFTI masks (optional)
+    'outputpath', [], ...        % base folder for figures and NIFTI masks (optional)
+    'outpath', [], ...           % deprecated output-path alias
     'mni_coords', [], ...       % MNI coordinates for 3D plotting in brain template
     'brainmarkersize', 8, ...   % marker size for 3D cluster maps
     'braincolorintensity', 0.75, ... % brightness multiplier for 3D cluster colors
     'figuremode', 'off', ...
     'figurelayout', 'individual', ...
-    'figureoutpath', [], ...
+    'figureoutpath', [], ...     % deprecated figure-only alias
     'figureformats', {{'png'}}, ...
     'figureprefix', '' ...
 );
@@ -161,13 +161,28 @@ clusterRange             = params.nclusters;
 plotMode                 = params.scatterplots;
 activationThresh         = params.thresh;
 representationThreshold  = params.representation_threshold;
-savePath                 = params.outpath;
 numSilhouetteRepeats     = params.evalclusters;
 mni_coords               = params.mni_coords;
 brainMarkerSize          = params.brainmarkersize;
 brainColorIntensity      = params.braincolorintensity;
-figureOutputPath         = params.figureoutpath;
-if isempty(figureOutputPath), figureOutputPath = savePath; end
+outputPath               = params.outputpath;
+if isempty(outputPath)
+    outputPath = params.outpath;
+elseif ~isempty(params.outpath) && ...
+        ~strcmp(char(string(params.outpath)), char(string(outputPath)))
+    warning(['The deprecated ''outpath'' value is ignored when ' ...
+        '''OutputPath'' is provided.']);
+end
+figureOutputPath = outputPath;
+if isempty(figureOutputPath)
+    figureOutputPath = params.figureoutpath;
+elseif ~isempty(params.figureoutpath) && ...
+        ~strcmp(char(string(params.figureoutpath)), char(string(figureOutputPath)))
+    warning(['The deprecated ''figureoutpath'' value is ignored when ' ...
+        '''OutputPath'' is provided.']);
+end
+% The deprecated figure-only alias does not implicitly request NIFTI files.
+savePath = outputPath;
 figureSettings = BROADNESS_FigureSettings(params.figuremode, params.figurelayout, ...
     figureOutputPath, params.figureformats, params.figureprefix, 'SpatialActivationClustering');
 figureHandles = gobjects(0);
@@ -432,98 +447,11 @@ else
 end
 plotLimits = [-1 1] * maxAbsoluteActivation * 1.05;
 
-clusterColors = jet(optimalK) * 0.9;
+clusterColors = jet(optimalK) * brainColorIntensity;
 laneSeparation = 1;
 lanePositions = (nSelectedPCs-1:-1:0) * laneSeparation;
 pointJitter = 0.28 * laneSeparation;
 baselineColor = [0.65 0.65 0.65];
-
-if ~strcmp(figureSettings.Mode, 'off')
-disp('Generating one-dimensional activation plots for the optimal clusters');
-activationSummaryFigure = [];
-activationSummaryLayout = [];
-if figureSettings.MakeSummary
-    activationSummaryFigure = figure('Visible', figureSettings.Visible, ...
-        'Color', 'w', 'Position', [100 100 1200 750]);
-    activationSummaryLayout = tiledlayout(activationSummaryFigure, 'flow', ...
-        'TileSpacing', 'compact', 'Padding', 'compact');
-    title(activationSummaryLayout, 'Optimal Clusters — Network Activation Profiles');
-end
-for cl = 1:optimalK
-    clusterTable = ClusterPoints_PC{cl};
-    clusterVisibility = figureSettings.Visible;
-    if ~figureSettings.MakeIndividual, clusterVisibility = 'off'; end
-    clusterFigure = figure('Color', 'w', ...
-        'Visible', clusterVisibility, ...
-        'Name', ['Cluster ' num2str(cl) ' activation values'], ...
-        'NumberTitle', 'off');
-    clusterAxes = axes('Parent', clusterFigure);
-    hold(clusterAxes, 'on');
-
-    for pcCol = 1:nSelectedPCs
-        laneY = lanePositions(pcCol);
-        plot(clusterAxes, plotLimits, [laneY laneY], '-', ...
-            'Color', baselineColor, 'LineWidth', 1);
-        plot(clusterAxes, [plotLimits(1) plotLimits(1)], ...
-            laneY + [-0.15 0.15] * laneSeparation, '-', ...
-            'Color', baselineColor, 'LineWidth', 1);
-        plot(clusterAxes, [plotLimits(2) plotLimits(2)], ...
-            laneY + [-0.15 0.15] * laneSeparation, '-', ...
-            'Color', baselineColor, 'LineWidth', 1);
-
-        text(clusterAxes, plotLimits(1) - 0.02 * diff(plotLimits), laneY, ...
-            ['BN' num2str(selectedPCs(pcCol))], ...
-            'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle');
-
-        activationValues = clusterTable{:,pcCol};
-        activationValues = activationValues(isfinite(activationValues));
-        % Exact zeros represent values removed by thresholding. Retain
-        % them in the output tables, but omit them from the plot so they
-        % do not form an artificial vertical column at zero.
-        activationValues = activationValues(activationValues ~= 0);
-        if ~isempty(activationValues)
-            % Continuous deterministic jitter separates overlapping points
-            % without creating artificial rows or changing MATLAB's
-            % random-number state.
-            jitterOrder = mod((1:length(activationValues))' * ...
-                0.618033988749895, 1);
-            jitterValues = (2 * jitterOrder - 1) * pointJitter;
-            scatter(clusterAxes, activationValues, laneY + jitterValues, 18, ...
-                'MarkerFaceColor', clusterColors(cl,:), ...
-                'MarkerEdgeColor', 'none');
-        end
-    end
-
-    xlim(clusterAxes, plotLimits);
-    ylim(clusterAxes, [min(lanePositions)-0.4 max(lanePositions)+0.4]);
-    xticks(clusterAxes, [plotLimits(1) 0 plotLimits(2)]);
-    set(clusterAxes, 'YColor', 'none');
-    box(clusterAxes, 'off');
-    grid(clusterAxes, 'off');
-    title(clusterAxes, ['Cluster ' num2str(cl) ' — ' ...
-        SPATIAL_CLUSTERING.ClusterSummary.NetworkCombination{cl}]);
-
-    if figureSettings.MakeSummary
-        summaryAxes = nexttile(activationSummaryLayout);
-        copy_axes_content(clusterAxes, summaryAxes, ['Cluster ' num2str(cl)]);
-        set(summaryAxes, 'YColor', 'none'); box(summaryAxes, 'off'); grid(summaryAxes, 'off');
-    end
-    if figureSettings.MakeIndividual
-        figureFiles = [figureFiles; BROADNESS_FinalizeFigure(clusterFigure, ...
-            figureSettings, ['OptimalK_' num2str(optimalK,'%02d') ...
-            '_Cluster_' num2str(cl,'%02d') '_ActivationProfile'])]; %#ok<AGROW>
-        if figureSettings.Show, figureHandles(end+1) = clusterFigure; end %#ok<AGROW>
-    else
-        close(clusterFigure)
-    end
-end
-if figureSettings.MakeSummary
-    figureFiles = [figureFiles; BROADNESS_FinalizeFigure(activationSummaryFigure, ...
-        figureSettings, ['OptimalK_' num2str(optimalK,'%02d') ...
-        '_ActivationProfiles_Summary'])];
-    if figureSettings.Show, figureHandles(end+1) = activationSummaryFigure; end
-end
-end
 
 %% ----------------------- Scatter plots (PC space) -----------------------
 
@@ -572,7 +500,7 @@ end
 
 if ~isempty(savePath)
     disp('Saving NIFTI images only for the optimal number of clusters');
-    niftiPath = fullfile(savePath, 'BROADNESS_Output', 'BROADNESS_nifti');
+    niftiPath = fullfile(savePath, 'BROADNESS_nifti');
     if ~exist(niftiPath, 'dir')
         mkdir(niftiPath);
     end
@@ -607,115 +535,96 @@ if ~isempty(savePath)
     end
 end
 
-%% ---------------- 3D brain per cluster (cluster membership only) --------
+%% ------------ Paired activation profile and 3D brain map --------------
 
-% Requires: 'mni_coords' as [Nvox x 3], same row order as data
-if strcmp(figureSettings.Mode, 'off')
-    % Numerical clustering and NIFTI outputs remain available without plots.
-elseif isempty(mni_coords)
-    warning('Skipping 3D brain plots: provide ''mni_coords'' as [Nvox x 3].');
-else
-    MNIcoordsAll = mni_coords;
-    if size(MNIcoordsAll,1) ~= nVoxels
-        warning('Skipping 3D brain plots: mni_coords size mismatch (got %d rows, expected %d).', ...
-                size(MNIcoordsAll,1), nVoxels);
+% Pairing the two views makes the functional loading profile of each
+% cluster immediately interpretable alongside its anatomical location.
+if ~strcmp(figureSettings.Mode, 'off')
+    disp('Generating paired activation-profile and 3D brain maps...');
+
+    if isempty(mni_coords)
+        MNIcoordsAll = coordinates.MNI8;
     else
-        disp('Generating 3D cluster maps (one brain per cluster, membership only)...');
+        MNIcoordsAll = mni_coords;
+    end
+    validMNI = size(MNIcoordsAll,1) == nVoxels && size(MNIcoordsAll,2) == 3;
+    if ~validMNI
+        warning(['3D cluster maps cannot be generated because ''mni_coords'' ' ...
+            'must contain one row per voxel and three columns.']);
+    end
 
-        skipper       = 1;                % downsampling step
-        scale_size    = brainMarkerSize;  % user-adjustable dot size
-        templateFigFn = 'BrainTemplate_MNI152_1mm_FullBrain.fig';
+    templateFigure = [];
+    templateAxes = [];
+    templateFigFn = 'BrainTemplate_MNI152_1mm_FullBrain.fig';
+    if validMNI && exist(templateFigFn, 'file')
+        templateFigure = openfig(templateFigFn, 'new', 'invisible');
+        templateAxes = findobj(templateFigure, 'Type', 'axes');
+        if ~isempty(templateAxes), templateAxes = templateAxes(1); end
+    end
 
-        % actual cluster labels present
-        labels   = clustersForOptimalK(:);
-        uniqLabs = unique(labels(:)');    % e.g. could be [0 1 2] or [2 3 4]
-        nLabs    = numel(uniqLabs);
-        cmap     = jet(nLabs) * brainColorIntensity; % one color per label
-
-        brainSummaryFigure = [];
-        brainSummaryLayout = [];
-        if figureSettings.MakeSummary
-            brainSummaryFigure = figure('Visible', figureSettings.Visible, ...
-                'Color', 'w', 'Position', [100 100 1200 750]);
-            brainSummaryLayout = tiledlayout(brainSummaryFigure, 'flow', ...
+    if figureSettings.MakeIndividual
+        for cl = 1:optimalK
+            voxMask = clustersForOptimalK == cl;
+            fig = figure('Visible', figureSettings.Visible, 'Color', 'w', ...
+                'Position', [100 100 1250 520], ...
+                'Name', ['Cluster ' num2str(cl) ' profile and brain map'], ...
+                'NumberTitle', 'off');
+            layout = tiledlayout(fig, 1, 2, ...
                 'TileSpacing', 'compact', 'Padding', 'compact');
-            title(brainSummaryLayout, '3D Cluster Maps');
-        end
+            title(layout, ['Cluster ' num2str(cl) ' — ' ...
+                SPATIAL_CLUSTERING.ClusterSummary.NetworkCombination{cl}]);
 
-        for li = 1:nLabs
-            clLab   = uniqLabs(li);
-            voxMask = (labels == clLab);
-
-            if ~any(voxMask)
-                warning('Cluster label %g: no voxels to plot.', clLab);
-                continue;
-            end
-
-            coords = MNIcoordsAll(voxMask, :);
-            coords = coords(1:skipper:end, :);
-
-            % open template brain or new figure
-            brainVisibility = figureSettings.Visible;
-            if ~figureSettings.MakeIndividual, brainVisibility = 'off'; end
-            if exist(templateFigFn,'file')
-                if strcmp(brainVisibility, 'on')
-                    openFigureVisibility = 'visible';
-                else
-                    openFigureVisibility = 'invisible';
-                end
-                fig = openfig(templateFigFn, 'new', openFigureVisibility);
-                ax  = findobj(fig, 'Type','axes');
-                if isempty(ax), ax = axes('Parent', fig); end
-                ax = ax(1);
-                set(fig,'Renderer','opengl');
-                hold(ax,'on');
-
-                % make template brain transparent if it's a patch object
-%                 brainPatch = findobj(ax, 'Type','patch');
-%                 if ~isempty(brainPatch)
-%                     set(brainPatch, 'FaceAlpha', 0.15, 'EdgeColor','none');
-%                 end
+            plot_activation_profile(nexttile(layout), ClusterPoints_PC{cl}, ...
+                selectedPCs, plotLimits, lanePositions, laneSeparation, ...
+                pointJitter, baselineColor, clusterColors(cl,:), 'Activation profile');
+            brainAxes = nexttile(layout);
+            if validMNI
+                plot_cluster_brain(brainAxes, templateAxes, ...
+                    MNIcoordsAll(voxMask,:), clusterColors(cl,:), brainMarkerSize, ...
+                    ['Brain location (n = ' num2str(nnz(voxMask)) ' voxels)']);
+                rotate3d(brainAxes, 'on');
             else
-                fig = figure('Color','w', 'Visible', brainVisibility);
-                ax  = axes('Parent', fig);
-                hold(ax,'on');
+                show_missing_brain_message(brainAxes);
             end
 
-            % plot voxels for this cluster
-            plot3(ax, coords(:,1), coords(:,2), coords(:,3), '.', ...
-                  'Color', cmap(li,:), 'MarkerSize', scale_size);
-
-            % styling / view
-            axis(ax,'tight'); axis(ax,'equal'); axis(ax,'vis3d'); axis(ax,'off');
-            rotate3d(ax,'on'); camlight(ax,'headlight'); lighting(ax,'gouraud');
-            title(ax, sprintf('3D Cluster Map — OptimalK=%d — Cluster %g: %s (n=%d voxels)', ...
-                  optimalK, clLab, SPATIAL_CLUSTERING.ClusterSummary.NetworkCombination{clLab}, nnz(voxMask)), ...
-                  'FontSize', 14, 'FontWeight', 'bold');
-
-            if figureSettings.MakeSummary
-                summaryAxes = nexttile(brainSummaryLayout, li);
-                copy_axes_content(ax, summaryAxes, ['Cluster ' num2str(clLab)]);
-                axis(summaryAxes, 'equal'); axis(summaryAxes, 'vis3d'); axis(summaryAxes, 'off');
-                view(summaryAxes, 3); camlight(summaryAxes, 'headlight'); lighting(summaryAxes, 'gouraud');
-                clusterTitle = title(summaryAxes, ['Cluster ' num2str(clLab)], ...
-                    'FontWeight', 'bold');
-                set(clusterTitle, 'Units', 'normalized', 'Position', [0.5 0.94 0]);
-            end
-            if figureSettings.MakeIndividual
-                figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, ...
-                    figureSettings, ['OptimalK_' num2str(optimalK,'%02d') ...
-                    '_Cluster_' num2str(clLab,'%02d') '_BrainMap'])]; %#ok<AGROW>
-                if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
-            else
-                close(fig)
-            end
-        end
-        if figureSettings.MakeSummary
-            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(brainSummaryFigure, ...
+            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, ...
                 figureSettings, ['OptimalK_' num2str(optimalK,'%02d') ...
-                '_BrainMaps_Summary'])];
-            if figureSettings.Show, figureHandles(end+1) = brainSummaryFigure; end
+                '_Cluster_' num2str(cl,'%02d') '_ProfileAndBrain'])]; %#ok<AGROW>
+            if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
         end
+    end
+
+    if figureSettings.MakeSummary
+        summaryHeight = min(1400, max(650, 275 * optimalK));
+        fig = figure('Visible', figureSettings.Visible, 'Color', 'w', ...
+            'Position', [80 60 1400 summaryHeight]);
+        layout = tiledlayout(fig, optimalK, 2, ...
+            'TileSpacing', 'compact', 'Padding', 'compact');
+        title(layout, ['Optimal Spatial Activation Clusters — K = ' num2str(optimalK)]);
+        for cl = 1:optimalK
+            voxMask = clustersForOptimalK == cl;
+            plot_activation_profile(nexttile(layout), ClusterPoints_PC{cl}, ...
+                selectedPCs, plotLimits, lanePositions, laneSeparation, ...
+                pointJitter, baselineColor, clusterColors(cl,:), ...
+                ['Cluster ' num2str(cl) ' — Activation profile']);
+            brainAxes = nexttile(layout);
+            if validMNI
+                plot_cluster_brain(brainAxes, templateAxes, ...
+                    MNIcoordsAll(voxMask,:), clusterColors(cl,:), brainMarkerSize, ...
+                    ['Cluster ' num2str(cl) ' — Brain location']);
+                rotate3d(brainAxes, 'on');
+            else
+                show_missing_brain_message(brainAxes);
+            end
+        end
+        figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, ...
+            figureSettings, ['OptimalK_' num2str(optimalK,'%02d') ...
+            '_ProfilesAndBrain_Summary'])];
+        if figureSettings.Show, figureHandles(end+1) = fig; end
+    end
+
+    if ~isempty(templateFigure) && isgraphics(templateFigure, 'figure')
+        close(templateFigure)
     end
 end
 
@@ -757,14 +666,70 @@ end
 title(ax, ['Cluster embedding — K = ' num2str(numberClusters)]);
 end
 
-function copy_axes_content(sourceAxes, targetAxes, targetTitle)
-copyobj(sourceAxes.Children, targetAxes);
-set(targetAxes, 'XLim', sourceAxes.XLim, 'YLim', sourceAxes.YLim);
-if isprop(sourceAxes, 'ZLim'), set(targetAxes, 'ZLim', sourceAxes.ZLim); end
-xlabel(targetAxes, sourceAxes.XLabel.String);
-ylabel(targetAxes, sourceAxes.YLabel.String);
-if ~isempty(sourceAxes.ZLabel.String), zlabel(targetAxes, sourceAxes.ZLabel.String); end
-title(targetAxes, targetTitle); box(targetAxes, sourceAxes.Box); grid(targetAxes, 'off');
+function plot_activation_profile(ax, clusterTable, selectedPCs, plotLimits, ...
+        lanePositions, laneSeparation, pointJitter, baselineColor, ...
+        clusterColor, plotTitle)
+hold(ax, 'on');
+for pcCol = 1:length(selectedPCs)
+    laneY = lanePositions(pcCol);
+    plot(ax, plotLimits, [laneY laneY], '-', ...
+        'Color', baselineColor, 'LineWidth', 1);
+    plot(ax, [plotLimits(1) plotLimits(1)], ...
+        laneY + [-0.15 0.15] * laneSeparation, '-', ...
+        'Color', baselineColor, 'LineWidth', 1);
+    plot(ax, [plotLimits(2) plotLimits(2)], ...
+        laneY + [-0.15 0.15] * laneSeparation, '-', ...
+        'Color', baselineColor, 'LineWidth', 1);
+    text(ax, plotLimits(1) - 0.02 * diff(plotLimits), laneY, ...
+        ['BN' num2str(selectedPCs(pcCol))], ...
+        'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle');
+
+    activationValues = clusterTable{:,pcCol};
+    activationValues = activationValues(isfinite(activationValues));
+    % Exact zeros represent values removed by thresholding. They remain in
+    % the output tables but are omitted from the plot.
+    activationValues = activationValues(activationValues ~= 0);
+    if ~isempty(activationValues)
+        % Deterministic continuous jitter separates overlapping points
+        % without changing MATLAB's random-number state.
+        jitterOrder = mod((1:length(activationValues))' * ...
+            0.618033988749895, 1);
+        jitterValues = (2 * jitterOrder - 1) * pointJitter;
+        scatter(ax, activationValues, laneY + jitterValues, 18, ...
+            'MarkerFaceColor', clusterColor, 'MarkerEdgeColor', 'none');
+    end
+end
+xlim(ax, plotLimits);
+ylim(ax, [min(lanePositions)-0.4 max(lanePositions)+0.4]);
+xticks(ax, [plotLimits(1) 0 plotLimits(2)]);
+set(ax, 'YColor', 'none'); box(ax, 'off'); grid(ax, 'off');
+xlabel(ax, 'Spatial activation');
+title(ax, plotTitle);
+end
+
+function plot_cluster_brain(ax, templateAxes, coords, clusterColor, ...
+        markerSize, plotTitle)
+hold(ax, 'on');
+if ~isempty(templateAxes) && isgraphics(templateAxes, 'axes')
+    copyobj(allchild(templateAxes), ax);
+    set(ax, 'XLim', templateAxes.XLim, 'YLim', templateAxes.YLim, ...
+        'ZLim', templateAxes.ZLim, 'View', templateAxes.View, ...
+        'Projection', templateAxes.Projection, ...
+        'DataAspectRatio', templateAxes.DataAspectRatio);
+else
+    view(ax, 3);
+end
+plot3(ax, coords(:,1), coords(:,2), coords(:,3), '.', ...
+    'Color', clusterColor, 'MarkerSize', markerSize);
+axis(ax, 'equal'); axis(ax, 'vis3d'); axis(ax, 'off');
+camlight(ax, 'headlight'); lighting(ax, 'gouraud');
+title(ax, plotTitle, 'FontWeight', 'bold');
+end
+
+function show_missing_brain_message(ax)
+text(ax, 0.5, 0.5, 'Valid MNI coordinates are required', ...
+    'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
+axis(ax, 'off');
 end
 
 function [newLabels, newCentroids, newSumD, summary] = order_clusters_by_network_breadth( ...

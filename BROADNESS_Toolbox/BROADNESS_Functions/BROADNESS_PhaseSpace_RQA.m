@@ -59,9 +59,11 @@ function [RQA_BROADNESS, FIGURES] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin
 %      - 'figuremode'                   : 'off', 'show', 'save', or 'both'. If omitted,
 %                                         the legacy 'figure' option is used (default: 'off')
 %      - 'figurelayout'                 : 'individual', 'summary', or 'both' (default: 'individual')
-%      - 'outpath'                      : Base output folder required when figures are saved
+%      - 'OutputPath'                   : Base output folder required when figures are saved
 %      - 'figureformats'                : 'png', 'pdf', 'fig', or a cell array (default: {'png'})
 %      - 'figureprefix'                 : Optional prefix for saved figure filenames
+%      - 'outpath'                      : Deprecated alias for 'OutputPath', retained for
+%                                         compatibility with previous BROADNESS scripts
 %
 % ------------------------------------------------------------------------
 %  OUTPUT:
@@ -116,7 +118,8 @@ disp('Checking inputs')
 % Defaults
 opts = struct('principalcomps', 1:2, 'timeinterval', [], 'threshold', 0.1, ...
     'theiler_window', [], 'video', 'off', 'figure', 'off', ...
-    'figuremode', [], 'figurelayout', 'individual', 'outpath', [], ...
+    'figuremode', [], 'figurelayout', 'individual', 'outputpath', [], ...
+    'outpath', [], ...
     'figureformats', {{'png'}}, 'figureprefix', '');
 opts = parse_name_value_pairs(opts, varargin{:});
 
@@ -135,8 +138,16 @@ if isempty(opts.figuremode)
         opts.figuremode = 'off';
     end
 end
+outputPath = opts.outputpath;
+if isempty(outputPath)
+    outputPath = opts.outpath;
+elseif ~isempty(opts.outpath) && ...
+        ~strcmp(char(string(opts.outpath)), char(string(outputPath)))
+    warning(['The deprecated ''outpath'' value is ignored when ' ...
+        '''OutputPath'' is provided.']);
+end
 figureSettings = BROADNESS_FigureSettings(opts.figuremode, opts.figurelayout, ...
-    opts.outpath, opts.figureformats, opts.figureprefix, 'PhaseSpace_RQA');
+    outputPath, opts.figureformats, opts.figureprefix, 'PhaseSpace_RQA');
 figureHandles = gobjects(0);
 figureFiles = {};
 
@@ -571,9 +582,12 @@ end
 function plot_recurrence_matrix(ax, matrixToPlot, analysedTime, plotTitle, thresholded)
 imagesc(ax, analysedTime, analysedTime, matrixToPlot);
 set(ax, 'YDir', 'normal'); xlabel(ax, 'Time (s)'); ylabel(ax, 'Time (s)');
-colorbar(ax); axis(ax, 'square'); title(ax, plotTitle);
+c = colorbar(ax); axis(ax, 'square'); title(ax, plotTitle);
 if thresholded
     colormap(ax, gray(2));
+    caxis(ax, [0 1]);
+    c.Ticks = [0 1];
+    c.TickLabels = {'0','1'};
 else
     colormap(ax, flipud(parula));
 end

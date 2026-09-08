@@ -66,10 +66,8 @@ function FIGURES = BROADNESS_Visualizer(BROADNESS, Options)
 %                               - 4)Activation patterns of the networks (3D)
 %                               - 5)Activation patterns of the networks (nifti images)
 %                               Default: All plots will be generated.
-%      - Options.name_nii     : path plus name for nifti images to be produced (one for each brain network)
-%                               (e.g. 'YOUR_OWN_PATH/'
-%                               then: 'Brain_Network_#_PROGRESSIVE NUMBER' will be automatically
-%                               added to the name of the nifti image)
+%      - Options.OutputPath   : Base output folder for saved figures and NIFTI files.
+%                               Required when figures or NIFTI files are saved.
 %      - Options.MNI_coords   : MNI coordinates provided in the same order as your data
 %                               (N x 3, where N is the brain voxel number)
 %      - Options.ncomps       : Components (networks) indices to be plotted in all plots but Variance plot
@@ -89,11 +87,11 @@ function FIGURES = BROADNESS_Visualizer(BROADNESS, Options)
 %                               If not supplied, default colors will be provided. 
 %      - Options.FigureMode   : 'off', 'show', 'save', or 'both' (default: 'show').
 %      - Options.FigureLayout : 'individual', 'summary', or 'both' (default: 'individual').
-%      - Options.OutputPath   : Base output folder required when figures are saved.
-%                               Options.name_nii is used if OutputPath is absent.
 %      - Options.FigureFormats: Format or cell array containing 'png', 'pdf', and/or 'fig'
 %                               (default: {'png'}).
 %      - Options.FigurePrefix : Optional prefix for saved figure filenames.
+%      - Options.name_nii     : Deprecated alias for Options.OutputPath, retained for
+%                               compatibility with previous BROADNESS scripts.
 %
 %  OUTPUT:
 %  - FIGURES.Handles          : Handles of figures left visible.
@@ -172,14 +170,19 @@ if ~isfield(Options,'FigureLayout'), Options.FigureLayout = 'individual'; end
 if ~isfield(Options,'FigureFormats'), Options.FigureFormats = {'png'}; end
 if ~isfield(Options,'FigurePrefix'), Options.FigurePrefix = ''; end
 if isfield(Options,'OutputPath')
-    figureOutputPath = Options.OutputPath;
+    outputPath = Options.OutputPath;
+    if isfield(Options,'name_nii') && ...
+            ~strcmp(char(string(Options.name_nii)), char(string(outputPath)))
+        warning(['Options.name_nii is deprecated and is ignored when ' ...
+            'Options.OutputPath is provided.']);
+    end
 elseif isfield(Options,'name_nii')
-    figureOutputPath = Options.name_nii;
+    outputPath = Options.name_nii;
 else
-    figureOutputPath = [];
+    outputPath = [];
 end
 figureSettings = BROADNESS_FigureSettings(Options.FigureMode, ...
-    Options.FigureLayout, figureOutputPath, Options.FigureFormats, ...
+    Options.FigureLayout, outputPath, Options.FigureFormats, ...
     Options.FigurePrefix, 'Visualizer');
 figureHandles = gobjects(0);
 figureFiles = {};
@@ -191,8 +194,8 @@ if Options.WhichPlots(4) == 1 && ~strcmp(figureSettings.Mode, 'off') && ...
 end
 
 % Checking if path and name to nifti file are provided
-if Options.WhichPlots(5) == 1 && ~isfield(Options,'name_nii')
-    error('Path and name to nifti file must be provided for saving nifti images.. (Options.WhichPlots = [0 0 0 0 1])')
+if Options.WhichPlots(5) == 1 && isempty(outputPath)
+    error('Options.OutputPath must be provided for saving NIFTI images. (Options.WhichPlots = [0 0 0 0 1])')
 end
 
 if isfield(Options,'Labels') % if user provided labels, they are extracted for later plotting purposes
@@ -383,8 +386,8 @@ if Options.WhichPlots(5) == 1
     disp('Generating and saving NIFTI images of brain network activation patterns...');
 
     % Creating directory for storing BROADNESS NIFTI output files
-    nifti_path = [Options.name_nii '/BROADNESS_Output/BROADNESS_nifti'];
-    mkdir(nifti_path)
+    nifti_path = fullfile(char(string(outputPath)), 'BROADNESS_nifti');
+    if ~exist(nifti_path, 'dir'), mkdir(nifti_path); end
     
     % Loading template
     template_nii = load_nii('MNI152_8mm_brain_diy.nii.gz');

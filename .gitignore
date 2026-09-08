@@ -3,6 +3,8 @@
 *.mat
 
 # BROADNESS-generated outputs
+/Output/
+/BROADNESS_Toolbox/Output/
 BROADNESS_Output/
 *.nii
 *.nii.gz
