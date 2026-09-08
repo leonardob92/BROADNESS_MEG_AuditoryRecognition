@@ -26,8 +26,8 @@
 %  BROADNESS first averages the data across participants to estimate a
 %  common set of group-level brain networks. Each participant's original
 %  data are then projected onto these common spatial activation patterns,
-%  producing participant-specific time series for each network that can be
-%  used in statistical analyses.
+%  producing participant-specific time series and spatial activatin patterns
+%  for each network that can be used in statistical analyses.
 %
 %  For a quicker group-level analysis, provide only the dataset already
 %  averaged across participants. This preserves the group-level spatial
