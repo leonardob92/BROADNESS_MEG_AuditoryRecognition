@@ -251,16 +251,8 @@ Options.color_conds = [
     0.4,    0.4,    0.4      % gray
 ]; %RGB code colors for experimental conditions
 
-% If you wish to remove the cerebellum voxels (not included in 3D brain template (#4)), please set 'remove_cerebellum_label' to 1
-% NOTE: This removal works only for 8mm brain
-remove_cerebellum_label = 0;
-if remove_cerebellum_label == 1
-    load(fullfile(project_path, 'BROADNESS_External', 'cerebellum_coords.mat')); %only cerebellar voxels
-    % Remove cerebellar voxels since they are not included in the 3D brain template (#4)
-    [~, idx_cerebellum] = ismember(MNI8, cerebellum_coords, 'rows');  % find cerebellum indexes in MNI coordinates matrix (all voxels)
-    MNI8(idx_cerebellum~=0,:) = nan; %assigning nans to MNI coordinates matrix
-    Options.MNI_coords = MNI8; %assigning the MNI coordinates of your data for visualization purposes (both 3D main template (#4) and nifti images (#5))
-end
+% The bundled 1mm MNI152 full-brain template includes the cerebellum, so
+% all source coordinates can be retained in the 3D visualization.
 
 %%% ------------------ COMPUTATION --------------------- %%%
 

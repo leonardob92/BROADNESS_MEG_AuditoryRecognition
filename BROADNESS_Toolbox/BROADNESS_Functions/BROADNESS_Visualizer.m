@@ -99,6 +99,8 @@ function BROADNESS_Visualizer(BROADNESS, Options)
 %  software.  
 %
 %  NOTE 2: 3D plot is supported for any brain MNI space (e.g. 1,2,8mm, etc).
+%          The bundled 1mm MNI152 full-brain template includes the
+%          cerebellum and brainstem.
 %          The nifti images are currently supported only for 8mm.
 %          If you need nifti images in a different space, feel free to contact us. 
 %
@@ -344,7 +346,7 @@ if Options.WhichPlots(4) == 1
     scale_size = 100;      % scaling factor for activation patterns in the brain
     
     % Opening figure
-    openfig('BrainTemplate_GT.fig')
+    openfig('BrainTemplate_MNI152_1mm_FullBrain.fig')
     hold on
     legend_handles = gobjects(1, length(ncomps)); % Preallocate legend handles
     

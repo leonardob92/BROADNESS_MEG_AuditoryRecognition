@@ -88,6 +88,9 @@ function [SPATIAL_CLUSTERING] = BROADNESS_SpatialActivationClustering(BROADNESS,
 %  - Network representation is based on absolute suprathreshold activation.
 %    Signed cluster means are retained separately in ClusterSummary.
 %
+%  - The bundled 1mm MNI152 template used for 3D cluster plots includes
+%    the cerebellum and brainstem.
+%
 %  - The optimal number of clusters is determined as the mode of silhouette-based
 %    evaluations repeated 10 times, to improve robustness.
 %
@@ -646,7 +649,7 @@ else
 
         skipper       = 1;                % downsampling step
         scale_size    = brainMarkerSize;  % user-adjustable dot size
-        templateFigFn = 'BrainTemplate_GT.fig';
+        templateFigFn = 'BrainTemplate_MNI152_1mm_FullBrain.fig';
 
         % actual cluster labels present
         labels   = clustersForOptimalK(:);
