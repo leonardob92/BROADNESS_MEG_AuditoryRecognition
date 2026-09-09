@@ -78,6 +78,12 @@
 %  - 5) BROADNESS_AlternativeNetworkEstimation_ICA()
 %       Alternative computation of brain networks using ICA
 %
+%  Participant-level statistical examples are provided separately for:
+%  - comparisons between conditions within one participant group
+%  - repeated conditions across multiple experimental sessions
+%  - comparisons between participant groups and condition x group effects
+%  See the three BROADNESS_Statistics_*_Example.m scripts.
+%
 % ------------------------------------------------------------------------
 %  AUTHORS:
 %  Leonardo Bonetti, Chiara Malvaso & Mattia Rosso
