@@ -40,7 +40,7 @@ BROADNESS_Startup(project_path);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-% 2) loading a few participants and concatenating them
+% loading a few participants and concatenating them
 list = dir(fullfile(data_path, 'SUBJ*.mat'));
 data = [];
 for subi = 1:length(list) %over participants
@@ -85,9 +85,9 @@ correlation_type = 'Pearson'; %'Pearson' or 'Spearman'
 % To test this section without real behavioural data, uncomment the lines
 % below. This creates a test variable from Brain Network 1, Condition 1.
 % Use this only to check that the code works, not for scientific inference.
-% test_indices = time >= 0.30 & time <= 0.50;
-% behaviour = squeeze(mean(network_time_series(test_indices,1,1,:),1));
-% behaviour = behaviour(:);
+test_indices = time >= 0.30 & time <= 0.50;
+behaviour = squeeze(mean(network_time_series(test_indices,1,1,:),1));
+behaviour = behaviour(:);
 
 figure_mode = 'show'; %'off', 'show', 'save', or 'both'
 figure_layout = 'individual';
@@ -101,6 +101,8 @@ end
 
 
 %% 3) PAIRED CONDITION TESTS ACROSS TIME
+
+run_condition_anova = 'on'; %'on' or 'off'
 
 % One paired t-test is performed at every time-point, for every selected
 % network and every pair of conditions. The tests are paired because the
@@ -147,7 +149,91 @@ for pair = 1:number_pairs
         ' vs ' condition_labels{condition_pairs(pair,2)}];
 end
 
-%% 4) OPTIONAL ASSOCIATION WITH A BEHAVIOURAL MEASURE
+% The optional repeated-measures ANOVA tests the overall condition effect
+% at every time-point. With more than two conditions, Greenhouse-Geisser
+% correction is applied before FDR correction across time and networks.
+if strcmpi(run_condition_anova,'on')
+    condition_anova = BROADNESS_RepeatedMeasuresANOVA( ...
+        network_time_series(:,selected_networks,:,:),alpha);
+elseif strcmpi(run_condition_anova,'off')
+    condition_anova.Enabled = false;
+    condition_anova.Reason = 'The optional condition ANOVA was switched off.';
+    condition_anova.Alpha = alpha;
+else
+    error('"run_condition_anova" must be ''on'' or ''off''.');
+end
+
+% Collect the condition-comparison statistics from this section.
+CONDITION_STATS.SelectedNetworks = selected_networks;
+CONDITION_STATS.ConditionLabels = condition_labels;
+CONDITION_STATS.Time = time;
+CONDITION_STATS.Alpha = alpha;
+CONDITION_STATS.PairedTests.ConditionPairs = condition_pairs;
+CONDITION_STATS.PairedTests.ContrastLabels = contrast_labels;
+CONDITION_STATS.PairedTests.PValues = p_values;
+CONDITION_STATS.PairedTests.AdjustedPValues = adjusted_p;
+CONDITION_STATS.PairedTests.Significant = significant;
+CONDITION_STATS.PairedTests.FDRCriticalP = critical_p;
+CONDITION_STATS.PairedTests.FDRMethod = 'Benjamini-Hochberg';
+CONDITION_STATS.PairedTests.FDRFamily = ...
+    'All selected time-points, networks, and condition pairs';
+CONDITION_STATS.PairedTests.TStatistics = t_statistics;
+CONDITION_STATS.PairedTests.CohenDz = cohen_dz;
+CONDITION_STATS.ANOVA = condition_anova;
+
+%% 4) PLOT THE FDR-SIGNIFICANT WINDOWS
+
+statistical_figures = cell(length(selected_networks),1);
+pairwise_colors = lines(max(1,number_pairs));
+pairwise_codes = arrayfun(@num2str,1:number_pairs,'UniformOutput',false)';
+
+if condition_anova.Enabled
+    significance_colors = [0 0 0; pairwise_colors];
+    significance_labels = [{'A'}; pairwise_codes];
+    significance_key = table([{'A'}; pairwise_codes], ...
+        [{'Overall condition effect (ANOVA)'}; contrast_labels], ...
+        'VariableNames',{'Line','StatisticalEffect'});
+else
+    significance_colors = pairwise_colors;
+    significance_labels = pairwise_codes;
+    significance_key = table(pairwise_codes,contrast_labels, ...
+        'VariableNames',{'Line','StatisticalEffect'});
+end
+
+disp('Significance-line key:')
+disp(significance_key)
+
+for network_index = 1:length(selected_networks)
+    pairwise_windows = cell(number_pairs,1);
+    for pair = 1:number_pairs
+        pairwise_windows{pair} = BROADNESS_SignificantSamplesToWindows( ...
+            significant(:,network_index,pair),time,minimum_significant_samples);
+    end
+    if condition_anova.Enabled
+        anova_windows = BROADNESS_SignificantSamplesToWindows( ...
+            condition_anova.Significant(:,network_index),time, ...
+            minimum_significant_samples);
+        significant_windows = [{anova_windows}; pairwise_windows];
+    else
+        significant_windows = pairwise_windows;
+    end
+    statistical_figures{network_index} = BROADNESS_Plot_ActivationTimeseries( ...
+        network_time_series(:,selected_networks(network_index),:,:),time, ...
+        'ConditionLabels',condition_labels, ...
+        'SignificantWindows',significant_windows, ...
+        'SignificanceColors',significance_colors, ...
+        'SignificanceLabels',significance_labels, ...
+        'SignificanceStyle','line', ...
+        'SignificanceLineOffset',0.025, ...
+        'FigureMode',figure_mode,'FigureLayout',figure_layout, ...
+        'OutputPath',output_path,'FigurePrefix', ...
+        ['WithinParticipants_BN' num2str(selected_networks(network_index))]);
+end
+
+CONDITION_STATS.SignificanceKey = significance_key;
+CONDITION_STATS.Figures = statistical_figures;
+
+%% 5) OPTIONAL ASSOCIATION WITH A BEHAVIOURAL MEASURE
 
 % This optional analysis relates the network response to one behavioural
 % value measured for each participant. At every time-point, the participants'
@@ -172,31 +258,11 @@ behaviour_correlation_figures = gobjects(0);
 behaviour_correlation_files = {};
 
 if ~isempty(behaviour)
-    if ~isnumeric(behaviour) || numel(behaviour) ~= number_participants
-        error('"behaviour" must contain one numeric value per participant.');
-    end
-    behaviour = behaviour(:);
-    if sum(isfinite(behaviour)) < 3
-        error('"behaviour" must contain at least three finite participant values.');
-    end
-
-    for network_index = 1:length(selected_networks)
-        network = selected_networks(network_index);
-        for condition = 1:number_conditions
-            % Rows are participants and columns are time-points.
-            participant_responses = reshape( ...
-                network_time_series(:,network,condition,:), ...
-                number_timepoints,number_participants)';
-            [correlation_values,correlation_p] = corr(participant_responses, ...
-                behaviour,'Type',correlation_type,'Rows','pairwise');
-            behaviour_correlations(:,network_index,condition) = ...
-                correlation_values(:);
-            behaviour_p_values(:,network_index,condition) = correlation_p(:);
-        end
-    end
-
-    [behaviour_significant,behaviour_adjusted_p,behaviour_critical_p] = ...
-        BROADNESS_FDRCorrection(behaviour_p_values,alpha);
+    selected_time_series = network_time_series(:,selected_networks,:,:);
+    [behaviour_correlations,behaviour_p_values,behaviour_adjusted_p, ...
+        behaviour_significant,behaviour_critical_p] = ...
+        BROADNESS_BehaviourCorrelation(selected_time_series,behaviour, ...
+        alpha,correlation_type);
 
     % Plot the correlation coefficient across time. Thick portions of each
     % curve indicate samples that remain significant after FDR correction.
@@ -244,50 +310,124 @@ if ~isempty(behaviour)
     end
 end
 
-%% 5) PLOT THE FDR-SIGNIFICANT WINDOWS
+% Collect the network-amplitude behavioural statistics from this section.
+BEHAVIOUR_STATS.Enabled = ~isempty(behaviour);
+BEHAVIOUR_STATS.SelectedNetworks = selected_networks;
+BEHAVIOUR_STATS.ConditionLabels = condition_labels;
+BEHAVIOUR_STATS.Time = time;
+BEHAVIOUR_STATS.Behaviour = behaviour;
+BEHAVIOUR_STATS.CorrelationType = correlation_type;
+BEHAVIOUR_STATS.Alpha = alpha;
+BEHAVIOUR_STATS.Correlations = behaviour_correlations;
+BEHAVIOUR_STATS.PValues = behaviour_p_values;
+BEHAVIOUR_STATS.AdjustedPValues = behaviour_adjusted_p;
+BEHAVIOUR_STATS.Significant = behaviour_significant;
+BEHAVIOUR_STATS.FDRCriticalP = behaviour_critical_p;
+BEHAVIOUR_STATS.FDRMethod = 'Benjamini-Hochberg';
+BEHAVIOUR_STATS.FDRFamily = ...
+    'All selected time-points, networks, and conditions';
+BEHAVIOUR_STATS.Figures = behaviour_correlation_figures;
+BEHAVIOUR_STATS.FigureFiles = behaviour_correlation_files;
 
-statistical_figures = cell(length(selected_networks),1);
-significance_colors = lines(max(1,number_pairs));
-for network_index = 1:length(selected_networks)
-    significant_windows = cell(number_pairs,1);
-    for pair = 1:number_pairs
-        significant_windows{pair} = BROADNESS_SignificantSamplesToWindows( ...
-            significant(:,network_index,pair),time,minimum_significant_samples);
+%% 6) OPTIONAL BEHAVIOURAL ASSOCIATION WITH PHASE-SPACE OR RQA METRICS
+
+%%% ------------------- USER SETTINGS ------------------- %%%
+
+phase_behaviour_analysis = 'RQA'; %'PhaseSpace' or 'RQA'
+selected_phase_metrics = {'Dispersion','Speed'}; %used only for 'PhaseSpace'
+
+% With 'PhaseSpace', select one or more time-resolved metrics from:
+% 'Dispersion', 'Speed', 'Acceleration', 'BaselineDisplacement', or
+% 'CumulativePathLength'. With 'RQA', all eight RQA metrics are analysed.
+%
+% The correlations are calculated separately for every condition. FDR is
+% applied jointly across the selected metrics, conditions, and time-points
+% (phase-space analysis), or across all RQA metrics and conditions.
+
+PHASE_RQA_BEHAVIOUR.Enabled = false;
+PHASE_RQA_BEHAVIOUR.Behaviour = behaviour;
+PHASE_RQA_BEHAVIOUR.CorrelationType = correlation_type;
+PHASE_RQA_BEHAVIOUR.Alpha = alpha;
+PHASE_RQA_BEHAVIOUR.FDRMethod = 'Benjamini-Hochberg';
+
+if ~isempty(behaviour)
+    if ~ismember(lower(phase_behaviour_analysis), {'phasespace','rqa'})
+        error('"phase_behaviour_analysis" must be ''PhaseSpace'' or ''RQA''.');
     end
-    statistical_figures{network_index} = BROADNESS_Plot_ActivationTimeseries( ...
-        network_time_series(:,selected_networks(network_index),:,:),time, ...
-        'ConditionLabels',condition_labels, ...
-        'SignificantWindows',significant_windows, ...
-        'SignificanceColors',significance_colors, ...
-        'SignificanceStyle','line', ...
-        'FigureMode',figure_mode,'FigureLayout',figure_layout, ...
-        'OutputPath',output_path,'FigurePrefix', ...
-        ['WithinParticipants_BN' num2str(selected_networks(network_index))]);
+
+    % Compute the participant-level phase space and RQA only once. If this
+    % output already exists in the workspace, it is reused.
+    if ~exist('RQA_BROADNESS','var')
+        RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS, ...
+            'principalcomps',selected_networks,'figuremode','off');
+    end
+
+    PHASE_RQA_BEHAVIOUR.Enabled = true;
+    PHASE_RQA_BEHAVIOUR.Analysis = phase_behaviour_analysis;
+    PHASE_RQA_BEHAVIOUR.Conditions = condition_labels;
+
+    if strcmpi(phase_behaviour_analysis,'PhaseSpace')
+        available_phase_metrics = {'Dispersion','Speed','Acceleration', ...
+            'BaselineDisplacement','CumulativePathLength'};
+        if ~iscell(selected_phase_metrics) || isempty(selected_phase_metrics) || ...
+                any(~ismember(selected_phase_metrics,available_phase_metrics))
+            error(['"selected_phase_metrics" must contain one or more valid ' ...
+                'time-resolved phase-space metrics.']);
+        end
+
+        % Obtain the participant-level phase-space metrics without running
+        % the inferential tests in BROADNESS_PhaseSpaceStatistics.
+        PHASE_STATS = BROADNESS_PhaseSpaceStatistics(RQA_BROADNESS, ...
+            'conditionnames',condition_labels,'statistics','off');
+        phase_time = PHASE_STATS.Time(:);
+        number_phase_metrics = length(selected_phase_metrics);
+        phase_metric_data = nan(length(phase_time),number_phase_metrics, ...
+            number_conditions,number_participants);
+
+        for metric_index = 1:number_phase_metrics
+            phase_metric_data(:,metric_index,:,:) = ...
+                PHASE_STATS.Metrics.(selected_phase_metrics{metric_index});
+        end
+
+        [correlations,p_values_phase,adjusted_p_phase,significant_phase, ...
+            critical_p_phase] = BROADNESS_BehaviourCorrelation( ...
+            phase_metric_data,behaviour,alpha,correlation_type);
+
+        PHASE_RQA_BEHAVIOUR.MetricNames = selected_phase_metrics;
+        PHASE_RQA_BEHAVIOUR.Time = phase_time;
+        PHASE_RQA_BEHAVIOUR.FDRFamily = ...
+            'Selected phase-space metrics, conditions, and time-points';
+
+    else
+        % Each participant has one RQA table containing all conditions and
+        % all eight metrics. These summary metrics do not have a time axis.
+        rqa_metric_names = RQA_BROADNESS.RQA_metrics{1}.Properties.VariableNames;
+        number_rqa_metrics = length(rqa_metric_names);
+        rqa_metric_data = nan(number_rqa_metrics,number_conditions, ...
+            number_participants);
+
+        for participant = 1:number_participants
+            rqa_metric_data(:,:,participant) = ...
+                table2array(RQA_BROADNESS.RQA_metrics{participant})';
+        end
+
+        [correlations,p_values_phase,adjusted_p_phase,significant_phase, ...
+            critical_p_phase] = BROADNESS_BehaviourCorrelation( ...
+            rqa_metric_data,behaviour,alpha,correlation_type);
+
+        PHASE_RQA_BEHAVIOUR.MetricNames = rqa_metric_names;
+        PHASE_RQA_BEHAVIOUR.Time = [];
+        PHASE_RQA_BEHAVIOUR.FDRFamily = 'All RQA metrics and conditions';
+    end
+
+    PHASE_RQA_BEHAVIOUR.Correlations = correlations;
+    PHASE_RQA_BEHAVIOUR.PValues = p_values_phase;
+    PHASE_RQA_BEHAVIOUR.AdjustedPValues = adjusted_p_phase;
+    PHASE_RQA_BEHAVIOUR.Significant = significant_phase;
+    PHASE_RQA_BEHAVIOUR.FDRCriticalP = critical_p_phase;
 end
 
-%% 6) COLLECT THE STATISTICAL OUTPUTS
-
-WITHIN_STATS.SelectedNetworks = selected_networks;
-WITHIN_STATS.ConditionPairs = condition_pairs;
-WITHIN_STATS.ContrastLabels = contrast_labels;
-WITHIN_STATS.Time = time;
-WITHIN_STATS.PValues = p_values;
-WITHIN_STATS.AdjustedPValues = adjusted_p;
-WITHIN_STATS.Significant = significant;
-WITHIN_STATS.FDRCriticalP = critical_p;
-WITHIN_STATS.TStatistics = t_statistics;
-WITHIN_STATS.CohenDz = cohen_dz;
-WITHIN_STATS.Figures = statistical_figures;
-WITHIN_STATS.Behaviour.Values = behaviour;
-WITHIN_STATS.Behaviour.CorrelationType = correlation_type;
-WITHIN_STATS.Behaviour.Correlations = behaviour_correlations;
-WITHIN_STATS.Behaviour.PValues = behaviour_p_values;
-WITHIN_STATS.Behaviour.AdjustedPValues = behaviour_adjusted_p;
-WITHIN_STATS.Behaviour.Significant = behaviour_significant;
-WITHIN_STATS.Behaviour.FDRCriticalP = behaviour_critical_p;
-WITHIN_STATS.Behaviour.CorrelationFigures = behaviour_correlation_figures;
-WITHIN_STATS.Behaviour.CorrelationFigureFiles = behaviour_correlation_files;
-
-disp('Within-participant statistical example completed. Results are stored in WITHIN_STATS.');
+disp(['Within-participant statistical example completed. Results are stored ' ...
+    'in CONDITION_STATS, BEHAVIOUR_STATS, and PHASE_RQA_BEHAVIOUR.']);
 
 %%

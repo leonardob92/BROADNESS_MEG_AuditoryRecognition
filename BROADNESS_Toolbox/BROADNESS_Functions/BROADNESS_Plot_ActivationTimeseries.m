@@ -51,6 +51,8 @@ function FIGURES = BROADNESS_Plot_ActivationTimeseries(data, time, varargin)
 %                                 }
 %    'SignificanceColors'       : [nLevels x 3] RGB matrix. One color per Y-level (row).
 %                                 Each level uses a single color for all of its lines.
+%    'SignificanceLabels'       : Optional short label for each Y-level. Labels are
+%                                 printed directly beside line-style significance marks.
 %    'SignificanceStyle'        : 'patch' (default) or 'line'
 %    'SignificanceLinePosition' : 'above' (default) or 'below'
 %    'SignificanceLineOffset'   : Distance from data to line (default = 0.01)
@@ -144,6 +146,7 @@ opts = struct( ...
     'ConditionXGroupColors', [], ...
     'SignificantWindows', [], ...
     'SignificanceColors', [], ...
+    'SignificanceLabels', [], ...
     'SignificanceStyle', 'patch', ...
     'SignificanceLinePosition', 'above', ...
     'SignificanceLineOffset', 0.01, ...
@@ -277,6 +280,17 @@ if ~isempty(opts.SignificantWindows)
             error('SignificanceColors must be RGB values between 0 and 1.');
         end
     end
+
+    if ~isempty(opts.SignificanceLabels)
+        if isstring(opts.SignificanceLabels)
+            opts.SignificanceLabels = cellstr(opts.SignificanceLabels(:));
+        end
+        if ~iscell(opts.SignificanceLabels) || ...
+                length(opts.SignificanceLabels) ~= length(opts.SignificantWindows)
+            error(['"SignificanceLabels" must contain one label for every ' ...
+                'level in "SignificantWindows".']);
+        end
+    end
 end
 
 % Ensure STE style is valid
@@ -402,7 +416,7 @@ for net = 1:nNet
             end
             
             % Store values for axis scaling
-            all_vals = [all_vals; mean_ts + ste_ts; mean_ts - ste_ts];
+            all_vals = [all_vals; mean_ts + ste_ts; mean_ts - ste_ts]; %#ok<AGROW>
         end
     end
     
@@ -485,6 +499,23 @@ for net = 1:nNet
                         patch([win(1) win(2) win(2) win(1)], [-1e5 -1e5 1e5 1e5], col, ...
                             'EdgeColor','none','FaceAlpha',0.2, 'HandleVisibility','off');
                 end
+            end
+
+            % Short direct labels identify stacked significance levels
+            % without adding a second legend to the figure.
+            if strcmpi(opts.SignificanceStyle,'line') && ...
+                    ~isempty(opts.SignificanceLabels) && ~isempty(levelWins)
+                if isempty(opts.XLimits)
+                    label_limits = [min(time) max(time)];
+                else
+                    label_limits = opts.XLimits;
+                end
+                label_x = label_limits(2)-0.005*diff(label_limits);
+                text(label_x,y_sig,char(string(opts.SignificanceLabels{level})), ...
+                    'HorizontalAlignment','right','VerticalAlignment','middle', ...
+                    'Color',col,'FontSize',8,'FontWeight','bold', ...
+                    'BackgroundColor','w','Margin',0.5, ...
+                    'Interpreter','none','HandleVisibility','off');
             end
         end
     end
