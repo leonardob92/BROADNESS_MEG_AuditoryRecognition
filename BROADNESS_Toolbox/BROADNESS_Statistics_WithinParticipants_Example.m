@@ -233,7 +233,38 @@ end
 CONDITION_STATS.SignificanceKey = significance_key;
 CONDITION_STATS.Figures = statistical_figures;
 
-%% 5) OPTIONAL ASSOCIATION WITH A BEHAVIOURAL MEASURE
+%% 5) CONDITION DIFFERENCES IN SPATIAL ACTIVATION PATTERNS
+
+% Participant spatial activation patterns can be compared between
+% conditions at every source. The function uses unthresholded maps and
+% cluster-mass permutation correction. It also calculates map strength,
+% weighted centroid, spatial dispersion, and hemispheric lateralization.
+%
+% This short example tests Brain Network 1 and Conditions 1 versus 2 with
+% 1000 permutations. For final inference, use at least 5000 permutations.
+% To test all condition pairs, set "spatial_condition_pairs" to
+% nchoosek(1:number_conditions,2).
+
+selected_spatial_networks = 1;
+spatial_condition_pairs = [1 2];
+spatial_permutations = 100;
+spatial_map_normalization = 'none'; %'none' or 'rms'
+run_spatial_omnibus = 'on'; %'on' tests the overall condition effect
+
+load(fullfile(project_path,'BROADNESS_External', ...
+    'MNI152_8mm_coord_dyi.mat'),'MNI8');
+
+[SPATIAL_STATS,SPATIAL_FIGURES] = BROADNESS_SpatialPatternStatistics( ...
+    BROADNESS,'principalcomps',selected_spatial_networks, ...
+    'conditionpairs',spatial_condition_pairs, ...
+    'conditionnames',condition_labels,'mni_coords',MNI8, ...
+    'mapnormalization',spatial_map_normalization, ...
+    'permutations',spatial_permutations,'omnibus',run_spatial_omnibus, ...
+    'figuremode',figure_mode,'figurelayout','both', ...
+    'OutputPath',output_path,'figureprefix','WithinParticipants');
+
+
+%% 6) OPTIONAL ASSOCIATION WITH A BEHAVIOURAL MEASURE
 
 % This optional analysis relates the network response to one behavioural
 % value measured for each participant. At every time-point, the participants'
@@ -329,7 +360,7 @@ BEHAVIOUR_STATS.FDRFamily = ...
 BEHAVIOUR_STATS.Figures = behaviour_correlation_figures;
 BEHAVIOUR_STATS.FigureFiles = behaviour_correlation_files;
 
-%% 6) OPTIONAL BEHAVIOURAL ASSOCIATION WITH PHASE-SPACE OR RQA METRICS
+%% 7) OPTIONAL BEHAVIOURAL ASSOCIATION WITH PHASE-SPACE OR RQA METRICS
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
@@ -428,6 +459,7 @@ if ~isempty(behaviour)
 end
 
 disp(['Within-participant statistical example completed. Results are stored ' ...
-    'in CONDITION_STATS, BEHAVIOUR_STATS, and PHASE_RQA_BEHAVIOUR.']);
+    'in CONDITION_STATS, SPATIAL_STATS, BEHAVIOUR_STATS, and ' ...
+    'PHASE_RQA_BEHAVIOUR.']);
 
 %%
