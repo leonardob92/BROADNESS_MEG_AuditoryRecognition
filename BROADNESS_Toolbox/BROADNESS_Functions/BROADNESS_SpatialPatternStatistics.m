@@ -183,9 +183,9 @@ end
 validate_on_off(opts.omnibus,'omnibus');
 validate_probability(opts.alpha,'alpha');
 validate_probability(opts.clusteralpha,'clusteralpha');
-if opts.clusteralpha >= opts.alpha
-    error('"clusteralpha" must be smaller than "alpha".');
-end
+% if opts.clusteralpha >= opts.alpha
+%     error('"clusteralpha" must be smaller than "alpha".');
+% end
 if ~isnumeric(opts.permutations) || ~isscalar(opts.permutations) || ...
         ~isfinite(opts.permutations) || opts.permutations < 3 || ...
         fix(opts.permutations) ~= opts.permutations

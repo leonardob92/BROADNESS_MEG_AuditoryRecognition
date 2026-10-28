@@ -137,10 +137,12 @@ end
 if permutations_num < 0
     warning('Your permutations_num is negative.. and thus it does not compute anything; are you sure this is what you want?')
 end
-sz = size(data);
-non_singleton_dims = sum(sz > 1); %trick to get if the matrix is a vector
-if non_singleton_dims < 2 || non_singleton_dims > 4
-    error('The data matrix must be either 2D (e.g. brain voxels x time), 3D (brain voxels x time x experimental conditions), or 4D (brain voxels x time x experimental conditions x participants)')
+% Detect input dimensions, including singleton conditions
+input_ndims = ndims(data);
+has_participants = input_ndims == 4;
+
+if input_ndims < 2 || input_ndims > 4
+    error('Data must be 2D, 3D, or 4D.')
 end
 if size(data,2) ~= length(time)
     error('The number of time-points in the data matrix (2nd dimension) must be equal to the time-points in the time vector')
@@ -165,7 +167,7 @@ end
 
 disp('Computing PCA')
 
-if non_singleton_dims == 4 %if data is provided for several independent participants
+if has_participants %if data is provided for several independent participants
     data_temp = data(:,idx_start:idx_end,:,:); %store the data within the time-window of interest
     data = mean(data_temp,4); %average it across participants
 else
@@ -292,7 +294,7 @@ BROADNESS.ActivationPatterns_BrainNetworks = activation_patterns_selected; %weig
 BROADNESS.SelectedComponents = selected_components; %one-based indices of the retained leading PCA components
 BROADNESS.PCA_Mean = pca_mean; %source-wise group mean used for PCA centering and participant projections
 
-if non_singleton_dims == 4 %if data is provided for several independent participants
+if has_participants %if data is provided for several independent participants
     TimeSeries = zeros(length(time),length(selected_components),size(data_temp,3),size(data_temp,4));
     for parti = 1:size(data_temp,4) %over participants
         disp(['Computing time series for participant ' num2str(parti) ' / ' num2str(size(data_temp,4))])
@@ -316,7 +318,7 @@ BROADNESS.TimeSeries_BrainNetworks = TimeSeries; %storing PCA time series
 
 IndividualActivationPatterns = [];
 
-if non_singleton_dims == 4
+if has_participants
     IndividualActivationPatterns = zeros(size(data_temp,1),length(selected_components),size(data_temp,3),size(data_temp,4));
     for parti = 1:size(data_temp,4) %over participants
         disp(['Computing spatial activation patterns for participant ' num2str(parti) ' / ' num2str(size(data_temp,4))])
@@ -331,7 +333,7 @@ end
 BROADNESS.ActivationPatterns_BrainNetworks_Individual = IndividualActivationPatterns;
 
 BROADNESS.Time = time; %storing time
-if non_singleton_dims == 4 %if data is provided for several independent participants
+if has_participants %if data is provided for several independent participants
     BROADNESS.OriginalData = data_temp; %storing original data
 else
     BROADNESS.OriginalData = data;

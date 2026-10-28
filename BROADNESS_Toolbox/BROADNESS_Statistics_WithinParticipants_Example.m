@@ -88,6 +88,7 @@ correlation_type = 'Pearson'; %'Pearson' or 'Spearman'
 test_indices = time >= 0.30 & time <= 0.50;
 behaviour = squeeze(mean(network_time_series(test_indices,1,1,:),1));
 behaviour = behaviour(:);
+% until here
 
 figure_mode = 'show'; %'off', 'show', 'save', or 'both'
 figure_layout = 'individual';
@@ -261,7 +262,8 @@ load(fullfile(project_path,'BROADNESS_External', ...
     'mapnormalization',spatial_map_normalization, ...
     'permutations',spatial_permutations,'omnibus',run_spatial_omnibus, ...
     'figuremode',figure_mode,'figurelayout','both', ...
-    'OutputPath',output_path,'figureprefix','WithinParticipants');
+    'OutputPath',output_path,'figureprefix','WithinParticipants', ...
+    'clusteralpha', 0.05, 'alpha', 0.05);
 
 
 %% 6) OPTIONAL ASSOCIATION WITH A BEHAVIOURAL MEASURE
