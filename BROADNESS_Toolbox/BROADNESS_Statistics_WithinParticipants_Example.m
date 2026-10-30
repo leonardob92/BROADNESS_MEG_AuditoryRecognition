@@ -16,14 +16,22 @@
 %  optional analysis also illustrates how the network responses can be
 %  related to one behavioural value measured for each participant.
 %
-%  Statistics and Machine Learning Toolbox is required for ttest and corr.
+%  HOW TO USE THIS EXAMPLE:
+%  1. Set the paths and participant-file pattern in Sections 0-1.
+%  2. Choose networks, conditions and statistics in Section 2.
+%  3. Set figure options in Section 3; spatial options in Section 4.
+%  4. Optionally supply independent behavioural scores in Sections 5-6.
+%  5. Inspect CONDITION_STATS, SPATIAL_STATS, BEHAVIOUR_STATS and
+%     PHASE_RQA_BEHAVIOUR. Participant order must match the loaded files.
+%
+%  Requires the BROADNESS toolbox and MATLAB Statistics Toolbox.
 % ========================================================================
 
 
 %% 0) STARTUP
 
-% Simply download the BROADNESS Toolbox folder and place it in your working directory,
-% making sure not to alter the structure of its functions, subfolders, or files.
+% Set the paths below, then run the script from top to bottom.
+% Each analysis section begins with the settings relevant to that section.
 
 clear 
 close all
@@ -40,7 +48,8 @@ BROADNESS_Startup(project_path);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-% loading a few participants and concatenating them
+% Load one file per participant; each file must contain "Data".
+% Input dimensions: sources x time x conditions x participants.
 list = dir(fullfile(data_path, 'SUBJ*.mat'));
 data = [];
 for subi = 1:length(list) %over participants
@@ -48,7 +57,7 @@ for subi = 1:length(list) %over participants
     data = cat(4,data,Data); %concatenating data
     disp(subi)
 end
-data(:,777:end,:,:) = []; %this is simply because we have too many data points in the single-participant data in this example
+data(:,777:end,:,:) = []; % example-specific truncation; adjust for your dataset
 %loading time
 load(fullfile(data_path, 'DataReduced_AveragedOverParticipants_Example.mat'),'time');
 
@@ -68,42 +77,27 @@ if number_timepoints ~= length(time) || number_participants < 2 || number_condit
 end
 
 
-%% 2) USER SETTINGS
+%% 2) PAIRED CONDITION TESTS ACROSS TIME
 
+% USER SETTINGS: select the networks, conditions and correction method.
+% Condition pairs are generated automatically (e.g. 5 conditions = 10 pairs).
 selected_networks = [1 2];
-condition_pairs = nchoosek(1:number_conditions,2); %all pairwise condition contrasts
 condition_labels = {'Memorized','NewT1','NewT2','NewT3','NewT4'};
+condition_pairs = nchoosek(1:number_conditions,2);
 alpha = 0.05;
-minimum_significant_samples = 1;
-if ~exist('behaviour', 'var')
-    % Replace [] with one value per participant, ordered exactly as "list"
-    % and therefore as the fourth dimension of "network_time_series".
-    behaviour = [];
-end
-correlation_type = 'Pearson'; %'Pearson' or 'Spearman'
-
-% To test this section without real behavioural data, uncomment the lines
-% below. This creates a test variable from Brain Network 1, Condition 1.
-% Use this only to check that the code works, not for scientific inference.
-test_indices = time >= 0.30 & time <= 0.50;
-behaviour = squeeze(mean(network_time_series(test_indices,1,1,:),1));
-behaviour = behaviour(:);
-% until here
-
-figure_mode = 'show'; %'off', 'show', 'save', or 'both'
-figure_layout = 'individual';
+correction_method = 'cluster'; % 'FDR' or 'cluster'
+cluster_permutations = 5000; % used only for cluster correction
+cluster_alpha = 0.05; % cluster-forming threshold
+run_condition_anova = 'on'; % 'on' or 'off'; overall condition test
 
 if length(condition_labels) ~= number_conditions
     error('Provide one entry in "condition_labels" for every condition.');
 end
-if ~ismember(lower(correlation_type), {'pearson','spearman'})
-    error('"correlation_type" must be ''Pearson'' or ''Spearman''.');
-end
 
+% HOW TO READ RESULTS: CONDITION_STATS.PairedTests contains the paired
+% comparisons (including CohenDz); CONDITION_STATS.ANOVA contains the
+% overall condition test. Cluster p-values refer to whole clusters.
 
-%% 3) PAIRED CONDITION TESTS ACROSS TIME
-
-run_condition_anova = 'on'; %'on' or 'off'
 
 % One paired t-test is performed at every time-point, for every selected
 % network and every pair of conditions. The tests are paired because the
@@ -140,10 +134,28 @@ for network_index = 1:length(selected_networks)
 end
 cohen_dz(~isfinite(cohen_dz)) = NaN;
 
-% All selected time-points, networks, and condition contrasts form one FDR
-% family here. Change the supplied family only with an a priori rationale.
-[significant,adjusted_p,critical_p] = BROADNESS_FDRCorrection(p_values,alpha);
-
+% Correction for multiple comparisons
+if strcmpi(correction_method,'FDR')
+    [significant,adjusted_p,critical_p] = ...
+        BROADNESS_FDRCorrection(p_values,alpha);
+    cluster_stats = [];
+    correction_name = 'Benjamini-Hochberg';
+    correction_family = ...
+        'All selected time-points, networks, and condition pairs';
+elseif strcmpi(correction_method,'cluster')
+    [significant,adjusted_p,critical_p,cluster_stats] = ...
+        BROADNESS_TemporalClusterCorrection( ...
+        network_time_series(:,selected_networks,:,:), ...
+        condition_pairs,alpha, ...
+        'permutations',cluster_permutations, ...
+        'clusteralpha',cluster_alpha, ...
+        'time',time);
+    correction_name = 'Temporal cluster-mass permutation';
+    correction_family = ...
+        'All time-points, separately per network and condition pair';
+else
+    error('correction_method must be ''FDR'' or ''cluster''.');
+end
 contrast_labels = cell(number_pairs,1);
 for pair = 1:number_pairs
     contrast_labels{pair} = [condition_labels{condition_pairs(pair,1)} ...
@@ -151,11 +163,28 @@ for pair = 1:number_pairs
 end
 
 % The optional repeated-measures ANOVA tests the overall condition effect
-% at every time-point. With more than two conditions, Greenhouse-Geisser
-% correction is applied before FDR correction across time and networks.
+% at every time-point. The FDR option uses Greenhouse-Geisser-adjusted
+% p-values when appropriate; the cluster option uses condition permutations.
 if strcmpi(run_condition_anova,'on')
-    condition_anova = BROADNESS_RepeatedMeasuresANOVA( ...
-        network_time_series(:,selected_networks,:,:),alpha);
+    if strcmpi(correction_method,'FDR')
+        condition_anova = BROADNESS_RepeatedMeasuresANOVA( ...
+            network_time_series(:,selected_networks,:,:),alpha);
+    elseif strcmpi(correction_method,'cluster')
+        [anova_significant,anova_corrected_p,~,anova_cluster_stats] = ...
+            BROADNESS_TemporalClusterCorrection_ANOVA( ...
+            network_time_series(:,selected_networks,:,:),alpha, ...
+            'permutations',cluster_permutations, ...
+            'clusteralpha',cluster_alpha, ...
+            'time',time);
+        condition_anova.Enabled = true;
+        condition_anova.Significant = anova_significant;
+        condition_anova.FStatistics = anova_cluster_stats.FStatistics;
+        condition_anova.ClusterCorrectedP = anova_corrected_p;
+        condition_anova.ClusterResults = anova_cluster_stats;
+        condition_anova.CorrectionMethod = 'Temporal cluster-mass permutation';
+    else
+        error('Unknown correction_method.');
+    end
 elseif strcmpi(run_condition_anova,'off')
     condition_anova.Enabled = false;
     condition_anova.Reason = 'The optional condition ANOVA was switched off.';
@@ -165,24 +194,41 @@ else
 end
 
 % Collect the condition-comparison statistics from this section.
-CONDITION_STATS.SelectedNetworks = selected_networks;
-CONDITION_STATS.ConditionLabels = condition_labels;
-CONDITION_STATS.Time = time;
-CONDITION_STATS.Alpha = alpha;
+% General analysis settings
+CONDITION_STATS.Settings.SelectedNetworks = selected_networks;
+CONDITION_STATS.Settings.ConditionLabels = condition_labels;
+CONDITION_STATS.Settings.Time = time;
+CONDITION_STATS.Settings.Alpha = alpha;
+CONDITION_STATS.Settings.RunConditionANOVA = run_condition_anova;
+CONDITION_STATS.Settings.CorrectionMethod = correction_method;
+CONDITION_STATS.Settings.ClusterPermutations = cluster_permutations;
+CONDITION_STATS.Settings.ClusterAlpha = cluster_alpha;
+% Paired condition comparisons
 CONDITION_STATS.PairedTests.ConditionPairs = condition_pairs;
 CONDITION_STATS.PairedTests.ContrastLabels = contrast_labels;
 CONDITION_STATS.PairedTests.PValues = p_values;
 CONDITION_STATS.PairedTests.AdjustedPValues = adjusted_p;
 CONDITION_STATS.PairedTests.Significant = significant;
 CONDITION_STATS.PairedTests.FDRCriticalP = critical_p;
-CONDITION_STATS.PairedTests.FDRMethod = 'Benjamini-Hochberg';
-CONDITION_STATS.PairedTests.FDRFamily = ...
-    'All selected time-points, networks, and condition pairs';
+CONDITION_STATS.PairedTests.CorrectionMethod = correction_name;
+CONDITION_STATS.PairedTests.CorrectionFamily = correction_family;
+CONDITION_STATS.PairedTests.ClusterResults = cluster_stats;
 CONDITION_STATS.PairedTests.TStatistics = t_statistics;
 CONDITION_STATS.PairedTests.CohenDz = cohen_dz;
+% Overall condition ANOVA
 CONDITION_STATS.ANOVA = condition_anova;
 
-%% 4) PLOT THE FDR-SIGNIFICANT WINDOWS
+%% 3) PLOT THE SIGNIFICANT TIME WINDOWS
+
+% USER SETTINGS: choose how figures are displayed and how short intervals
+% may be. One sample is enough to display an interval by default.
+figure_mode = 'show'; % 'off', 'show', 'save', or 'both'
+figure_layout = 'individual';
+minimum_significant_samples = 1;
+
+% Curves show mean network responses by condition. The 'A' line marks the
+% overall ANOVA; numbered lines correspond to condition pairs in the key.
+% FDR marks individual samples; cluster correction tests whole intervals.
 
 statistical_figures = cell(length(selected_networks),1);
 pairwise_colors = lines(max(1,number_pairs));
@@ -231,21 +277,29 @@ for network_index = 1:length(selected_networks)
         ['WithinParticipants_BN' num2str(selected_networks(network_index))]);
 end
 
-CONDITION_STATS.SignificanceKey = significance_key;
-CONDITION_STATS.Figures = statistical_figures;
+% Save the figure settings alongside the corresponding figure results.
+CONDITION_STATS.Settings.MinimumSignificantSamples = minimum_significant_samples;
+CONDITION_STATS.Settings.FigureMode = figure_mode;
+CONDITION_STATS.Settings.FigureLayout = figure_layout;
 
-%% 5) CONDITION DIFFERENCES IN SPATIAL ACTIVATION PATTERNS
+% Collect figures and their significance-line descriptions
+CONDITION_STATS.Figures.SignificanceKey = significance_key;
+CONDITION_STATS.Figures.ConditionComparisons = statistical_figures;
+
+%% 4) CONDITION DIFFERENCES IN SPATIAL ACTIVATION PATTERNS
 
 % Participant spatial activation patterns can be compared between
 % conditions at every source. The function uses unthresholded maps and
 % cluster-mass permutation correction. It also calculates map strength,
 % weighted centroid, spatial dispersion, and hemispheric lateralization.
 %
-% This short example tests Brain Network 1 and Conditions 1 versus 2 with
-% 1000 permutations. For final inference, use at least 5000 permutations.
+% This example tests Network 1, Conditions 1 versus 2, using 100
+% permutations for a quick check; use at least 5000 for final inference.
 % To test all condition pairs, set "spatial_condition_pairs" to
 % nchoosek(1:number_conditions,2).
 
+% USER SETTINGS: these choices apply only to the spatial analysis.
+% This section uses participant spatial maps, not the temporal t-tests.
 selected_spatial_networks = 1;
 spatial_condition_pairs = [1 2];
 spatial_permutations = 100;
@@ -266,7 +320,25 @@ load(fullfile(project_path,'BROADNESS_External', ...
     'clusteralpha', 0.05, 'alpha', 0.05);
 
 
-%% 6) OPTIONAL ASSOCIATION WITH A BEHAVIOURAL MEASURE
+%% 5) OPTIONAL ASSOCIATION WITH A BEHAVIOURAL MEASURE
+
+% USER SETTINGS: one external behavioural score per participant, in the
+% same order as "list". Leave [] to skip this section and Section 6.
+behaviour = [];
+correlation_type = 'Pearson'; % 'Pearson' or 'Spearman'
+
+% DEMONSTRATION ONLY: Uncomment to check the workflow with artificial
+% behaviour derived from the MEG data. NEVER use it for scientific inference.
+% test_indices = time >= 0.30 & time <= 0.50;
+% behaviour = squeeze(mean(network_time_series(test_indices,1,1,:),1));
+% behaviour = behaviour(:);
+
+if ~ismember(lower(correlation_type), {'pearson','spearman'})
+    error('"correlation_type" must be ''Pearson'' or ''Spearman''.');
+end
+if ~isempty(behaviour) && numel(behaviour) ~= number_participants
+    error('Provide exactly one behavioural value per participant.');
+end
 
 % This optional analysis relates the network response to one behavioural
 % value measured for each participant. At every time-point, the participants'
@@ -362,10 +434,9 @@ BEHAVIOUR_STATS.FDRFamily = ...
 BEHAVIOUR_STATS.Figures = behaviour_correlation_figures;
 BEHAVIOUR_STATS.FigureFiles = behaviour_correlation_files;
 
-%% 7) OPTIONAL BEHAVIOURAL ASSOCIATION WITH PHASE-SPACE OR RQA METRICS
+%% 6) OPTIONAL BEHAVIOURAL ASSOCIATION WITH PHASE-SPACE OR RQA METRICS
 
-%%% ------------------- USER SETTINGS ------------------- %%%
-
+% USER SETTINGS: choose phase-space metrics or RQA summaries.
 phase_behaviour_analysis = 'RQA'; %'PhaseSpace' or 'RQA'
 selected_phase_metrics = {'Dispersion','Speed'}; %used only for 'PhaseSpace'
 

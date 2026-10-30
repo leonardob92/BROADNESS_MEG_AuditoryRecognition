@@ -2,20 +2,34 @@
 %  BROADNESS STATISTICS EXAMPLE 2: INDEPENDENT PARTICIPANT GROUPS
 % ========================================================================
 %
-%  Compare two or more independent participant groups within each condition.
-%  All participants are concatenated along the fourth dimension BEFORE
-%  running one common BROADNESS network estimation.
-%  Network time series: time x networks x conditions x participants.
-%  The participant (not the time sample) is the independent unit.
-%  Optional window-level models test condition x group and behaviour.
+%  QUICK GUIDE
+%  1. Set your toolbox/data paths in Section 0 and load participant data
+%     in Section 1. Participant files must share the same source, time,
+%     and condition dimensions.
+%  2. Set group assignments and correction method at the start of Section 2.
+%     Group labels MUST match the order of participant files.
+%  3. Run the sections in order. Settings for plots, mixed models,
+%     behaviour, and spatial statistics appear where they are used.
 %
-%  Requires Statistics and Machine Learning Toolbox (ttest2, fitlme).
+%  Section 2: Independent Welch group tests for each condition/time point.
+%             Two groups: pairwise tests. Three or more: also Welch ANOVA.
+%  Section 3: Group activation plots and significance-line descriptions.
+%  Section 4: Condition x Group mixed model in a predefined time window.
+%  Section 5: Optional behavioural association in the same time window.
+%  Section 6: Source-level spatial group comparisons and summary measures.
+%
+%  Data dimensions: sources x time x conditions x participants.
+%  Network output: time x networks x conditions x participants.
+%  Participants, not time samples, are the independent units.
+%
+%  Main outputs: GROUP_STATS, SPATIAL_GROUP_STATS, SPATIAL_GROUP_FIGURES.
+%  Requires the BROADNESS Toolbox and MATLAB Statistics Toolbox.
 % ========================================================================
 
 %% 0) STARTUP
 
-% Simply download the BROADNESS Toolbox folder and place it in your working directory,
-% making sure not to alter the structure of its functions, subfolders, or files.
+% Place the BROADNESS Toolbox in your working directory, keeping its
+% functions and subfolders together. Edit the paths below for your computer.
 
 clear 
 close all
@@ -32,7 +46,10 @@ BROADNESS_Startup(project_path);
 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
-% loading a few participants and concatenating them
+% Load one .mat file per participant. Each file must contain "Data"
+% with dimensions sources x time x conditions. The fourth dimension
+% indexes participants, in the order returned by "list".
+% This same participant order must be used for group_labels and behaviour.
 list = dir(fullfile(data_path, 'SUBJ*.mat'));
 data = [];
 for subi = 1:length(list) %over participants
@@ -46,7 +63,8 @@ load(fullfile(data_path, 'DataReduced_AveragedOverParticipants_Example.mat'),'ti
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-% Run BROADNESS network estimation (default parameters)
+% Estimate ONE common network decomposition using all participants.
+% Do not estimate separate networks for each group.
 BROADNESS = BROADNESS_NetworkEstimation(data, time);
 
 % Extracting relevant information from BROADNESS_NetworkEstimation
@@ -60,33 +78,30 @@ if number_timepoints ~= length(time) || number_participants < 2 || number_condit
 end
 
 
-%% 2) USER SETTINGS
+%% 2) INDEPENDENT GROUP TESTS FOR EACH CONDITION
 
+% ------------------- USER SETTINGS -------------------
+% Choose the brain networks and label each experimental condition.
+% Group labels must follow the order of participant files in "list".
 selected_networks = [1 2];
 condition_labels = {'Memorized','NewT1','NewT2','NewT3','NewT4'};
-alpha = 0.05;
-minimum_significant_samples = 1;
 
-% IMPORTANT: One group label for EACH participant, in the order of "list".
-% Example for 10 participants: first 5 in Control, next 5 in Patient.
-% For 3 groups, use e.g. [ones(1,5) 2*ones(1,5) 3*ones(1,5)]
-% and provide three group names (matching the participant file order).
-% REPLACE this example with your actual participant assignments.
+% Example: 20 controls, 15 patients and 8 participants in a third group.
+% Replace these values with your actual assignments and group names.
+% For two groups, use for example:
+% group_labels = [ones(1,20) 2*ones(1,23)];
+% group_names = {'Control','Patient'};
 group_labels = [ones(1,20) 2*ones(1,15) 3*ones(1,8)];
-group_names = {'Control','Patient','s'}; %group 1 and group 2
+group_names = {'Control','Patient','s'};
 
-% Predefine the time window for the condition x group interaction.
-summary_time_window = [0.35 0.75]; %seconds
-run_interaction = 'on'; %'on' or 'off'
+% Statistical correction for the time-resolved group comparisons.
+alpha = 0.05;
+correction_method = 'cluster'; % 'FDR' or 'cluster'
+cluster_permutations = 5000; % used only for 'cluster'
+cluster_alpha = 0.05;       % cluster-forming threshold
 
-% Optional: one independent behavioural value per participant, in list order.
-% Leave empty to skip. Do not derive behaviour from the tested MEG data.
-behaviour = [];
+% ------------------- INPUT CHECKS --------------------
 
-figure_mode = 'show'; %'off', 'show', 'save', or 'both'
-figure_layout = 'individual';
-
-% Check the settings before starting the statistics.
 if numel(condition_labels) ~= number_conditions
     error('Provide one condition label for each condition.');
 end
@@ -104,34 +119,24 @@ for group = 1:number_groups
         error('Every group must contain at least two participants.');
     end
 end
-if ~isempty(behaviour) && (~isnumeric(behaviour) || ...
-        numel(behaviour) ~= number_participants || any(~isfinite(behaviour(:))))
-    error('behaviour must contain one finite numeric value per participant.');
-end
-if ~ismember(lower(run_interaction),{'on','off'})
-    error('run_interaction must be ''on'' or ''off''.');
-end
-summary_indices = time >= summary_time_window(1) & ...
-    time <= summary_time_window(2);
-if ~any(summary_indices)
-    error('summary_time_window does not overlap the time vector.');
-end
+
 
 group_indices = cell(number_groups,1);
 for group = 1:number_groups
     group_indices{group} = find(group_labels == group);
 end
 
-%% 3) INDEPENDENT GROUP TESTS FOR EACH CONDITION
 
 % At every time point, condition and network, compare independent groups.
 % With 2 groups: Welch independent t-test.
 % With 3+ groups: Welch one-way ANOVA (overall group effect), plus Welch
 % t-tests for every group pair. Welch tests allow unequal group variances.
 % Pairwise effect size: Hedges' g (first group minus second group).
-% Overall and pairwise p-values use SEPARATE FDR families, each including
-% all selected time points, networks and conditions (and all group pairs
-% for pairwise tests). Pairwise tests are not gated on ANOVA significance.
+% With FDR, correction spans all selected time points, networks,
+% conditions and group pairs (ANOVA and pairwise are separate families).
+% With 'cluster', each network, condition and group pair is corrected
+% separately across time; the overall ANOVA uses each network/condition.
+% Pairwise tests are not gated on overall ANOVA significance.
 
 group_pairs = nchoosek(1:number_groups,2);
 number_group_pairs = size(group_pairs,1);
@@ -212,17 +217,53 @@ for network_index = 1:number_selected_networks
     end
 end
 hedges_g(~isfinite(hedges_g)) = NaN;
-[significant,adjusted_p,critical_p] = BROADNESS_FDRCorrection(p_values,alpha);
 
+%correction for multiple comparisons
+if strcmpi(correction_method,'FDR')
+    [significant,adjusted_p,critical_p] = ...
+        BROADNESS_FDRCorrection(p_values,alpha);
+    cluster_stats = [];
+    correction_name = 'Benjamini-Hochberg';
+    correction_family = ...
+        'All selected time-points, networks, conditions and group pairs';
+elseif strcmpi(correction_method,'cluster')
+    [significant,adjusted_p,critical_p,cluster_stats] = ...
+        BROADNESS_TemporalClusterCorrection_Groups( ...
+        network_time_series(:,selected_networks,:,:), ...
+        group_labels,group_pairs,alpha, ...
+        'permutations',cluster_permutations, ...
+        'clusteralpha',cluster_alpha, ...
+        'time',time);
+    correction_name = 'Temporal cluster-mass wild bootstrap';
+    correction_family = ...
+        'All time points, separately per network, condition and group pair';
+else
+    error('correction_method must be ''FDR'' or ''cluster''.');
+end
+% Overall group ANOVA correction (only for 3 or more groups)
+overall_cluster_stats = [];
 if number_groups > 2
-    [overall_significant,overall_adjusted_p,overall_critical_p] = ...
-        BROADNESS_FDRCorrection(overall_p,alpha);
+    if strcmpi(correction_method,'FDR')
+        [overall_significant,overall_adjusted_p,overall_critical_p] = ...
+            BROADNESS_FDRCorrection(overall_p,alpha);
+    elseif strcmpi(correction_method,'cluster')
+        [overall_significant,overall_adjusted_p,overall_critical_p,overall_cluster_stats] = ...
+            BROADNESS_TemporalClusterCorrection_GroupANOVA( ...
+            network_time_series(:,selected_networks,:,:), ...
+            group_labels,alpha, ...
+            'permutations',cluster_permutations, ...
+            'clusteralpha',cluster_alpha, ...
+            'time',time);
+    else
+        error('correction_method must be ''FDR'' or ''cluster''.');
+    end
 else
     overall_significant = false(size(overall_p));
     overall_adjusted_p = nan(size(overall_p));
     overall_critical_p = NaN;
 end
 
+% -------------------- GENERAL SETTINGS --------------------
 GROUP_STATS.Settings.SelectedNetworks = selected_networks;
 GROUP_STATS.Settings.ConditionLabels = condition_labels;
 GROUP_STATS.Settings.GroupNames = group_names;
@@ -230,35 +271,66 @@ GROUP_STATS.Settings.GroupLabels = group_labels;
 GROUP_STATS.Settings.NumberGroups = number_groups;
 GROUP_STATS.Settings.Time = time;
 GROUP_STATS.Settings.Alpha = alpha;
-GROUP_STATS.Settings.MinimumSignificantSamples = minimum_significant_samples;
-GROUP_STATS.Settings.FigureMode = figure_mode;
-GROUP_STATS.Settings.FigureLayout = figure_layout;
+GROUP_STATS.Settings.CorrectionMethod = correction_method;
+GROUP_STATS.Settings.ClusterPermutations = cluster_permutations;
+GROUP_STATS.Settings.ClusterAlpha = cluster_alpha;
+
+% -------------------- PAIRWISE GROUP COMPARISONS --------------------
 GROUP_STATS.BetweenGroupComparisons.GroupPairs = group_pairs;
 GROUP_STATS.BetweenGroupComparisons.PValues = p_values;
 GROUP_STATS.BetweenGroupComparisons.AdjustedPValues = adjusted_p;
 GROUP_STATS.BetweenGroupComparisons.Significant = significant;
-GROUP_STATS.BetweenGroupComparisons.FDRCriticalP = critical_p;
-GROUP_STATS.BetweenGroupComparisons.FDRMethod = 'Benjamini-Hochberg';
-GROUP_STATS.BetweenGroupComparisons.FDRFamily = ...
-    'All selected time-points, networks, conditions and group pairs';
+GROUP_STATS.BetweenGroupComparisons.CriticalP = critical_p;
 GROUP_STATS.BetweenGroupComparisons.TStatistics = t_statistics;
 GROUP_STATS.BetweenGroupComparisons.HedgesG = hedges_g;
+GROUP_STATS.BetweenGroupComparisons.CorrectionMethod = correction_name;
+GROUP_STATS.BetweenGroupComparisons.CorrectionFamily = correction_family;
+GROUP_STATS.BetweenGroupComparisons.ClusterResults = cluster_stats;
+
+% -------------------- OVERALL GROUP ANOVA --------------------
 GROUP_STATS.BetweenGroupComparisons.OverallANOVA.Enabled = number_groups > 2;
 GROUP_STATS.BetweenGroupComparisons.OverallANOVA.FStatistics = overall_F;
 GROUP_STATS.BetweenGroupComparisons.OverallANOVA.PValues = overall_p;
 GROUP_STATS.BetweenGroupComparisons.OverallANOVA.AdjustedPValues = overall_adjusted_p;
 GROUP_STATS.BetweenGroupComparisons.OverallANOVA.Significant = overall_significant;
-GROUP_STATS.BetweenGroupComparisons.OverallANOVA.FDRCriticalP = overall_critical_p;
-GROUP_STATS.BetweenGroupComparisons.OverallANOVA.FDRMethod = 'Benjamini-Hochberg';
-GROUP_STATS.BetweenGroupComparisons.OverallANOVA.FDRFamily = ...
-    'All selected time-points, networks and conditions';
+GROUP_STATS.BetweenGroupComparisons.OverallANOVA.CriticalP = overall_critical_p;
+GROUP_STATS.BetweenGroupComparisons.OverallANOVA.ClusterResults = overall_cluster_stats;
 
-%% 4) PLOT THE FDR-SIGNIFICANT WINDOWS
+if number_groups > 2
+    if strcmpi(correction_method,'FDR')
+        GROUP_STATS.BetweenGroupComparisons.OverallANOVA.CorrectionMethod = ...
+            'Benjamini-Hochberg';
+        GROUP_STATS.BetweenGroupComparisons.OverallANOVA.CorrectionFamily = ...
+            'All selected time-points, networks and conditions';
+    else
+        GROUP_STATS.BetweenGroupComparisons.OverallANOVA.CorrectionMethod = ...
+            'Temporal cluster-mass wild bootstrap';
+        GROUP_STATS.BetweenGroupComparisons.OverallANOVA.CorrectionFamily = ...
+            'All time-points, separately per network and condition';
+    end
+else
+    GROUP_STATS.BetweenGroupComparisons.OverallANOVA.CorrectionMethod = ...
+        'Not applicable';
+    GROUP_STATS.BetweenGroupComparisons.OverallANOVA.CorrectionFamily = ...
+        'Not applicable';
+end
 
-% With 2 groups: one numbered significance line per condition.
-% With 3+ groups: A1, A2, ... show the overall ANOVA for each condition;
-% numbered lines show pairwise group comparisons within each condition.
-% These are FDR-significant samples, not cluster-corrected intervals.
+%% 3) PLOT THE STATISTICALLY SIGNIFICANT WINDOWS
+
+% ------------------- USER SETTINGS -------------------
+% Choose how statistical figures are displayed or saved.
+figure_mode = 'show'; % 'off', 'show', 'save', or 'both'
+figure_layout = 'individual';
+minimum_significant_samples = 1; % minimum consecutive samples to display
+
+% -------------------- PLOTTING -----------------------
+% Plot group-average network time series and significance lines.
+% With 2 groups, each line represents one group contrast per condition.
+% With 3+ groups, A1, A2, ... indicate the overall group ANOVA per
+% condition, while numbered lines identify pairwise group contrasts.
+% See GROUP_STATS.Figures.SignificanceKey for the complete line key.
+% FDR lines show significant samples; cluster lines show whole clusters.
+% A significant cluster does not establish its precise neural onset.
 
 number_pairwise_contrasts = number_conditions*number_group_pairs;
 pairwise_codes = arrayfun(@num2str,1:number_pairwise_contrasts, ...
@@ -334,10 +406,29 @@ for network_index = 1:number_selected_networks
         'OutputPath',output_path,'FigurePrefix', ...
         ['BetweenGroups_BN' num2str(selected_networks(network_index))]);
 end
+GROUP_STATS.Settings.MinimumSignificantSamples = minimum_significant_samples;
+GROUP_STATS.Settings.FigureMode = figure_mode;
+GROUP_STATS.Settings.FigureLayout = figure_layout;
 GROUP_STATS.Figures.SignificanceKey = significance_key;
 GROUP_STATS.Figures.GroupComparisons = statistical_figures;
 
-%% 5) CONDITION x GROUP INTERACTION IN A PREDEFINED TIME WINDOW
+%% 4) CONDITION x GROUP INTERACTION IN A PREDEFINED TIME WINDOW
+
+% ------------------- USER SETTINGS -------------------
+% Select a time window in seconds BEFORE inspecting the results.
+% 'on' fits one Condition x Group mixed model per selected network.
+summary_time_window = [0.35 0.75]; % seconds
+run_interaction = 'on'; % 'on' or 'off'
+
+% ------------------- INPUT CHECKS --------------------
+if ~ismember(lower(run_interaction),{'on','off'})
+    error('run_interaction must be ''on'' or ''off''.');
+end
+summary_indices = time >= summary_time_window(1) & ...
+    time <= summary_time_window(2);
+if ~any(summary_indices)
+    error('summary_time_window does not overlap the time vector.');
+end
 
 % This asks a DIFFERENT question from Section 3:
 % "Does the effect of condition depend on which group a participant belongs to?"
@@ -375,7 +466,19 @@ GROUP_STATS.ConditionGroupMixedModel.Tables = window_tables;
 GROUP_STATS.ConditionGroupMixedModel.Models = window_models;
 GROUP_STATS.ConditionGroupMixedModel.ANOVA = window_anova;
 
-%% 6) OPTIONAL BEHAVIOURAL ASSOCIATION
+%% 5) OPTIONAL BEHAVIOURAL ASSOCIATION
+
+% ------------------- USER SETTINGS -------------------
+% Provide one independent behavioural score per participant, ordered
+% exactly as the participant files in "list". Leave [] to skip.
+% Behaviour is a participant-level predictor, not an additional group.
+behaviour = [];
+
+% ------------------- INPUT CHECKS --------------------
+if ~isempty(behaviour) && (~isnumeric(behaviour) || ...
+        numel(behaviour) ~= number_participants || any(~isfinite(behaviour(:))))
+    error('behaviour must contain one finite numeric value per participant.');
+end
 
 % If behaviour is provided, fit a window-level mixed-effects model that
 % includes behaviour as an additional participant-level predictor.
@@ -423,7 +526,7 @@ GROUP_STATS.Behaviour.Models = behaviour_models;
 
 disp('Between-group statistical example completed. Results are stored in GROUP_STATS.');
 
-%% 7) GROUP DIFFERENCES IN SPATIAL ACTIVATION PATTERNS
+%% 6) GROUP DIFFERENCES IN SPATIAL ACTIVATION PATTERNS
 
 % Compare participant-specific spatial maps from the SAME BROADNESS
 % decomposition, separately for each experimental condition.
@@ -435,6 +538,9 @@ disp('Between-group statistical example completed. Results are stored in GROUP_S
 % Start with 100 permutations to check the workflow; for final inference
 % use at least 5000 and validate assumptions and bootstrap calibration.
 
+% ------------------- USER SETTINGS -------------------
+% Select networks and the number of bootstrap replicates for the
+% source-level spatial analysis. Use more replicates for final inference.
 selected_spatial_networks = 1;
 spatial_permutations = 100; %exploration only; use >=5000 for final inference
 spatial_map_normalization = 'none'; %'none' or 'rms'
