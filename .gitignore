@@ -1,0 +1,30 @@
+# Local research data
+/Data/
+*.mat
+
+# BROADNESS-generated outputs
+/Output/
+/BROADNESS_Toolbox/Output/
+BROADNESS_Output/
+*.nii
+*.nii.gz
+
+# Local MATLAB drafts excluded from the published toolbox
+/BROADNESS_Toolbox/TEMP_BROADNESS_PublicationSurfaceRenderer.m
+/BROADNESS_Toolbox/TEMP_BROADNESS_Statistics_RepeatedSessions_Example.m
+
+# macOS metadata
+.DS_Store
+
+# Python environments, caches, and build artefacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+build/
+dist/
+*.egg-info/

@@ -26,8 +26,8 @@
 %  BROADNESS first averages the data across participants to estimate a
 %  common set of group-level brain networks. Each participant's original
 %  data are then projected onto these common spatial activation patterns,
-%  producing participant-specific time series for each network that can be
-%  used in statistical analyses.
+%  producing participant-specific time series and spatial activatin patterns
+%  for each network that can be used in statistical analyses.
 %
 %  For a quicker group-level analysis, provide only the dataset already
 %  averaged across participants. This preserves the group-level spatial
@@ -78,6 +78,11 @@
 %  - 5) BROADNESS_AlternativeNetworkEstimation_ICA()
 %       Alternative computation of brain networks using ICA
 %
+%  Participant-level statistical examples are provided separately for:
+%  - comparisons between conditions within one participant group
+%  - comparisons between participant groups and condition x group effects
+%  See the BROADNESS_Statistics_*_Example.m scripts.
+%
 % ------------------------------------------------------------------------
 %  AUTHORS:
 %  Leonardo Bonetti, Chiara Malvaso & Mattia Rosso
@@ -102,9 +107,9 @@ close all
 clc
 
 % Setup directories relative to this example script
-project_path = '/Users/au550322/Documents/GitHub/BROADNESS_MEG_AuditoryRecognition/BROADNESS_Toolbox';
-data_path = '/Users/au550322/Documents/GitHub/BROADNESS_MEG_AuditoryRecognition/Data';
-output_path = project_path;
+project_path = fileparts(mfilename('fullpath'));
+data_path = fullfile(fileparts(project_path),'Data');
+output_path = fullfile(project_path,'Output');
 addpath(project_path)
 BROADNESS_Startup(project_path);
 
@@ -118,19 +123,19 @@ average_data_label = 1; %1 = data already averaged; 0 = single participant data
 
 if average_data_label == 1
     % 1) loading an example of data already averaged across participants
-    load([data_path '/DataReduced_AveragedOverParticipants_Example.mat']);
+    load(fullfile(data_path, 'DataReduced_AveragedOverParticipants_Example.mat'));
 else
     % 2) loading a few participants and concatenating them
-    list = dir([data_path '/SUBJ*.mat']);
+    list = dir(fullfile(data_path, 'SUBJ*.mat'));
     data = [];
     for subi = 1:length(list) %over participants
-        load([list(subi).folder '/' list(subi).name]) %loading data for each participant
+        load(fullfile(list(subi).folder, list(subi).name)) %loading data for each participant
         data = cat(4,data,Data); %concatenating data
         disp(subi)
     end
     data(:,777:end,:,:) = []; %this is simply because we have too many data points in the single-participant data in this example
     %loading time
-    load([data_path '/DataReduced_AveragedOverParticipants_Example.mat'],'time');
+    load(fullfile(data_path, 'DataReduced_AveragedOverParticipants_Example.mat'),'time');
 end
 
 %%% ------------------ COMPUTATION --------------------- %%%
@@ -153,19 +158,19 @@ average_data_label = 1; %1 = data already averaged; 0 = single participant data
 
 if average_data_label == 1
     % 1) loading an example of data already averaged across participants
-    load([data_path '/DataReduced_AveragedOverParticipants_Example.mat']);
+    load(fullfile(data_path, 'DataReduced_AveragedOverParticipants_Example.mat'));
 else
     % 2) loading a few participants and concatenating them
-    list = dir([data_path '/SUBJ*.mat']);
+    list = dir(fullfile(data_path, 'SUBJ*.mat'));
     data = [];
     for subi = 1:length(list) %over participants
-        load([list(subi).folder '/' list(subi).name]) %loading data for each participant
+        load(fullfile(list(subi).folder, list(subi).name)) %loading data for each participant
         data = cat(4,data,Data); %concatenating data
         disp(subi)
     end
     data(:,777:end,:,:) = []; %this is simply because we have too many data points in the single-participant data in this example
     %loading time
-    load([data_path '/DataReduced_AveragedOverParticipants_Example.mat'],'time');
+    load(fullfile(data_path, 'DataReduced_AveragedOverParticipants_Example.mat'),'time');
 end
 
 % Optional arguments
@@ -176,7 +181,7 @@ sign_eigenvect = 'max_abs';
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-BROADNESS = BROADNESS_NetworkEstimation(DATA, time, ...
+BROADNESS = BROADNESS_NetworkEstimation(data, time, ...
                                 'time_window', time_window, 'permutations_num', permutations_num, 'randomization', randomization, 'sign_eigenvect', sign_eigenvect); %% Call with optional parameters
 %%
 
@@ -200,10 +205,18 @@ ED = BROADNESS_EffectiveDimensionality(eigenspectrum);
 %%% ------------------- USER SETTINGS ------------------- %%%
 
 % Minimal user settings: output folder and MNI coordinates of original brain voxel data
-Options = [];
-Options.name_nii = output_path; %output folder
+Options = struct;
+Options.OutputPath = output_path; %base folder for figures and NIFTI files
 load(fullfile(project_path, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
+
+% FigureMode can be 'off', 'show', 'save', or 'both'. FigureLayout can be
+% 'individual', 'summary', or 'both'. The defaults here show individual
+% publication-ready figures without saving them.
+Options.FigureMode = 'show';
+Options.FigureLayout = 'individual';
+% Use 'save' for an invisible batch export, 'both' to display and save, or
+% 'off' to suppress figure creation entirely.
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
@@ -222,8 +235,8 @@ BROADNESS_Visualizer(BROADNESS,Options)
 %%% ------------------- USER SETTINGS ------------------- %%%
 
 % Minimal user settings: output folder
-Options = [];
-Options.name_nii = output_path; %output folder
+Options = struct;
+Options.OutputPath = output_path; %base folder for figures and NIFTI files
 load(fullfile(project_path, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
 Options.WhichPlots = [0 0 1 0 0]; %which plots to be generated
@@ -250,17 +263,13 @@ Options.color_conds = [
     0.651,  0.463,  0.114;   % brown
     0.4,    0.4,    0.4      % gray
 ]; %RGB code colors for experimental conditions
+Options.FigureMode = 'both'; %display and save the selected figures
+Options.FigureLayout = 'both'; %individual figures plus a compact summary
+Options.FigureFormats = {'png','fig'}; %300-dpi previews and editable MATLAB figures
+Options.FigurePrefix = 'BROADNESS_Example';
 
-% If you wish to remove the cerebellum voxels (not included in 3D brain template (#4)), please set 'remove_cerebellum_label' to 1
-% NOTE: This removal works only for 8mm brain
-remove_cerebellum_label = 0;
-if remove_cerebellum_label == 1
-    load(fullfile(project_path, 'BROADNESS_External', 'cerebellum_coords.mat')); %only cerebellar voxels
-    % Remove cerebellar voxels since they are not included in the 3D brain template (#4)
-    [~, idx_cerebellum] = ismember(MNI8, cerebellum_coords, 'rows');  % find cerebellum indexes in MNI coordinates matrix (all voxels)
-    MNI8(idx_cerebellum~=0,:) = nan; %assigning nans to MNI coordinates matrix
-    Options.MNI_coords = MNI8; %assigning the MNI coordinates of your data for visualization purposes (both 3D main template (#4) and nifti images (#5))
-end
+% The bundled 1mm MNI152 full-brain template includes the cerebellum, so
+% all source coordinates can be retained in the 3D visualization.
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
@@ -282,7 +291,10 @@ BROADNESS_Visualizer(BROADNESS,Options)
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS,'principalcomps',[1:2],'threshold',0.1,'video','off','figure','on');
+RQA_BROADNESS = BROADNESS_PhaseSpace_RQA(BROADNESS, ...
+    'principalcomps', [1:2], 'threshold', 0.1, 'video', 'on', ...
+    'figuremode', 'both', 'figurelayout', 'both', ...
+    'OutputPath', output_path, 'figureformats', {'png','fig'});
 
 %%
 
@@ -334,7 +346,11 @@ Options.MNI_coords = MNI8;
 
 %%% ------------------ COMPUTATION --------------------- %%%
 
-SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(BROADNESS,'principalcomps',[1:2],'evalclusters',1,'mni_coords', Options.MNI_coords);
+SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(BROADNESS, ...
+    'principalcomps', [1:2], 'evalclusters', 1, ...
+    'mni_coords', Options.MNI_coords, 'OutputPath', output_path, ...
+    'figuremode', 'both', 'figurelayout', 'both', ...
+    'figureformats', {'png','fig'});
 
 %%
 
@@ -345,8 +361,25 @@ SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(BROADNESS,'
 %%% ------------------- USER SETTINGS ------------------- %%%
 
 %%% As for the PCA approach, load all MAT files from the local "data"
-% folder, or keep only one file there when using already averaged data.
-[DATA, time] = load_broadness_example_data(data_path);
+% folder, or use the dataset already averaged across participants.
+ica_participant_data = false;
+if ica_participant_data
+    list = dir(fullfile(data_path,'SUBJ*.mat'));
+    DATA = [];
+    for subi = 1:numel(list)
+        participant_file = load(fullfile(list(subi).folder,list(subi).name),'Data');
+        DATA = cat(4,DATA,participant_file.Data);
+    end
+    DATA(:,777:end,:,:) = [];
+    time_file = load(fullfile(data_path, ...
+        'DataReduced_AveragedOverParticipants_Example.mat'),'time');
+    time = time_file.time;
+else
+    example_file = load(fullfile(data_path, ...
+        'DataReduced_AveragedOverParticipants_Example.mat'),'data','time');
+    DATA = example_file.data;
+    time = example_file.time;
+end
 % Additional optional inputs can be provided, as described in the function. 
 
 %%% ------------------ COMPUTATION --------------------- %%%
@@ -367,8 +400,8 @@ BROADNESS_ICA = BROADNESS_AlternativeNetworkEstimation_ICA(DATA, time, 'icacomps
 %%% ------------------- USER SETTINGS ------------------- %%%
 
 % Minimal user settings: output folder
-Options = [];
-Options.name_nii = output_path; %output folder
+Options = struct;
+Options.OutputPath = output_path; %base folder for figures and NIFTI files
 load(fullfile(project_path, 'BROADNESS_External', 'MNI152_8mm_coord_dyi.mat')); %all voxels MNI coordinates
 Options.MNI_coords = MNI8;
 Options.WhichPlots = [0 0 0 0 0]; %which plots to be generated
