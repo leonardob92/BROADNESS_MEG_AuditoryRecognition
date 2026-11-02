@@ -80,9 +80,8 @@
 %
 %  Participant-level statistical examples are provided separately for:
 %  - comparisons between conditions within one participant group
-%  - repeated conditions across multiple experimental sessions
 %  - comparisons between participant groups and condition x group effects
-%  See the three BROADNESS_Statistics_*_Example.m scripts.
+%  See the BROADNESS_Statistics_*_Example.m scripts.
 %
 % ------------------------------------------------------------------------
 %  AUTHORS:
@@ -108,9 +107,9 @@ close all
 clc
 
 % Setup directories relative to this example script
-project_path = '/Users/au550322/Documents/GitHub/BROADNESS_MEG_AuditoryRecognition/BROADNESS_Toolbox';
-data_path = '/Users/au550322/Documents/GitHub/BROADNESS_MEG_AuditoryRecognition/Data';
-output_path = [project_path '/Output'];
+project_path = fileparts(mfilename('fullpath'));
+data_path = fullfile(fileparts(project_path),'Data');
+output_path = fullfile(project_path,'Output');
 addpath(project_path)
 BROADNESS_Startup(project_path);
 
@@ -362,8 +361,25 @@ SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(BROADNESS, 
 %%% ------------------- USER SETTINGS ------------------- %%%
 
 %%% As for the PCA approach, load all MAT files from the local "data"
-% folder, or keep only one file there when using already averaged data.
-[DATA, time] = load_broadness_example_data(data_path);
+% folder, or use the dataset already averaged across participants.
+ica_participant_data = false;
+if ica_participant_data
+    list = dir(fullfile(data_path,'SUBJ*.mat'));
+    DATA = [];
+    for subi = 1:numel(list)
+        participant_file = load(fullfile(list(subi).folder,list(subi).name),'Data');
+        DATA = cat(4,DATA,participant_file.Data);
+    end
+    DATA(:,777:end,:,:) = [];
+    time_file = load(fullfile(data_path, ...
+        'DataReduced_AveragedOverParticipants_Example.mat'),'time');
+    time = time_file.time;
+else
+    example_file = load(fullfile(data_path, ...
+        'DataReduced_AveragedOverParticipants_Example.mat'),'data','time');
+    DATA = example_file.data;
+    time = example_file.time;
+end
 % Additional optional inputs can be provided, as described in the function. 
 
 %%% ------------------ COMPUTATION --------------------- %%%

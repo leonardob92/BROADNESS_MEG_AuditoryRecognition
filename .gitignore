@@ -9,6 +9,10 @@ BROADNESS_Output/
 *.nii
 *.nii.gz
 
+# Local MATLAB drafts excluded from the published toolbox
+/BROADNESS_Toolbox/TEMP_BROADNESS_PublicationSurfaceRenderer.m
+/BROADNESS_Toolbox/TEMP_BROADNESS_Statistics_RepeatedSessions_Example.m
+
 # macOS metadata
 .DS_Store
 
