@@ -29,6 +29,7 @@ BROADNESS_Output/
 
 # Python environments, caches, and build artefacts
 .venv/
+.venv-previous-*/
 venv/
 __pycache__/
 *.py[cod]

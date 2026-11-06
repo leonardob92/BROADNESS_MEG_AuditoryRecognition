@@ -95,7 +95,7 @@ visualizer also accepts these figure options in its `Options` dictionary.
 
 ## Environment setup
 
-Use Python 3.11 or newer. From this directory, create and activate a virtual
+Use Python 3.11 through 3.14. From this directory, create and activate a virtual
 environment, then install the package:
 
 ```text

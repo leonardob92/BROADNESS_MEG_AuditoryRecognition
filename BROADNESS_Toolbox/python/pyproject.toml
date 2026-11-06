@@ -7,7 +7,7 @@ name = "broadness"
 version = "0.1.0"
 description = "Python implementation of the BROADNESS toolbox"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 authors = [
   { name = "Leonardo Bonetti" },
   { name = "Chiara Malvaso" },

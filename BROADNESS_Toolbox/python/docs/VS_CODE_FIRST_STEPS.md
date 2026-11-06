@@ -4,6 +4,10 @@ This guide starts with a fresh computer and ends with a small working BROADNESS
 analysis. It uses a `.py` script with sections, like a MATLAB live script. The
 example uses generated data, so you do **not** need the large research dataset.
 
+**Already ran setup successfully on this computer?** Skip section 2. Open the
+`python` folder in VS Code, select its `.venv` interpreter in section 3, and
+run the four cells in section 4. You do not need to install Python again.
+
 ## 1. Get the software and repository
 
 1. Install [Visual Studio Code](https://code.visualstudio.com/download).
@@ -30,20 +34,38 @@ In VS Code, choose **Terminal → New Terminal**. The prompt should be in the
 | macOS or Linux | `bash setup_vscode.sh` |
 | Windows (PowerShell or Command Prompt) | `.\setup_vscode.bat` |
 
-The setup script checks for **Python 3.11 or newer**, creates `.venv`, installs
-BROADNESS with plotting support and the VS Code kernel, and prints a success
-message. It does not alter your other Python projects. If Python is missing or
-too old, the script opens [python.org/downloads](https://www.python.org/downloads/).
-Install Python there, **close and reopen the terminal**, and run the same setup
-command again. On Windows, if the installer shows **Add Python to PATH**, enable
-it. System Python installation may ask for your normal operating-system
-permission. A setup script cannot run Python code before Python is installed;
-the shell or batch file performs this first check.
+The setup script checks for **Python 3.11 through 3.14**, creates `.venv`, and
+installs BROADNESS, plotting support, and the VS Code kernel. A successful run
+ends with **`BROADNESS and the VS Code kernel are ready`**. It does not change
+your other Python projects.
+
+If the script says **No compatible Python was found**:
+
+1. Open the [Python 3.14 installer page](https://www.python.org/downloads/release/python-31410/)
+   and download the installer for your operating system. Do not select Python
+   3.15 for this toolbox yet.
+2. On a Mac, double-click the downloaded `.pkg` and follow the installer
+   screens. On Windows, run the installer and enable **Add Python to PATH** if
+   it offers that choice.
+3. Close the VS Code terminal, open **Terminal → New Terminal**, and type the
+   same setup command from the table above. Wait for the success message.
+
+System Python installation may ask for your operating-system password. The
+shell or batch script detects Python before trying to run Python code.
 
 If a previous installation was interrupted, run the same setup command again.
-An existing `.venv` is reused. If the setup reports a network error, connect to
-the internet and retry. Installation downloads Python packages once; the
-quickstart itself uses very little memory and no participant data.
+An existing compatible `.venv` is reused. An incompatible one is moved to a
+`.venv-previous-*` backup before setup creates a replacement. If setup reports
+a network error, connect to the internet and retry. Installation downloads
+Python packages once; the quickstart uses very little memory and no participant
+data.
+
+**If you installed Python 3.15:** the first setup script could try to compile
+`h5py` and fail because a compatible prebuilt wheel was unavailable. You do
+not need to uninstall Python 3.15. Install Python 3.14 alongside it, or point
+the macOS/Linux setup script at an existing compatible Python with
+`BROADNESS_PYTHON=/full/path/to/python bash setup_vscode.sh`. The script will
+move the incomplete 3.15 `.venv` aside and build a new one.
 
 ## 3. Tell VS Code which Python to use
 
@@ -55,6 +77,11 @@ quickstart itself uses very little memory and no participant data.
 4. Look at the lower right of VS Code: the selected Python interpreter should
    say `.venv`. If it does not appear, use **Enter interpreter path** and select
    that file directly.
+
+On a Mac, the selected path should be inside the folder you opened in step 1,
+ending in `BROADNESS_Toolbox/python/.venv/bin/python`. The global `python3`
+command can point to a different Python; the selected `.venv` path is what
+matters for BROADNESS.
 
 You do not need to activate `.venv` manually to use **Run Cell**. The VS Code
 Jupyter extension uses the selected environment as the kernel. If VS Code asks
@@ -70,6 +97,11 @@ you to **Select Kernel**, choose **Python Environments → .venv**.
    same Interactive Window open. The variables produced by earlier sections
    remain available to later sections.
 4. Section 4 makes a simple plot and prints where to inspect the variables.
+
+You have finished the first lesson when you see a data shape of `(12, 80, 2, 6)`,
+a network time-series shape of `(80, 4, 2, 6)`, and a two-line plot. If a cell
+reports that a name such as `data` or `pca` is missing, restart the Interactive
+Window and run cells 1–4 in order again.
 
 If **Run Cell** is missing, check that the file name ends in `.py` and that the
 Python and Jupyter extensions are installed. You can also open the Command
