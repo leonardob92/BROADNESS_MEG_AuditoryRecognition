@@ -3,6 +3,11 @@
 This directory contains the modular Python implementation of the BROADNESS
 toolbox. The MATLAB implementation is in the sibling `matlab` directory.
 
+**New to Python?** Start with [BROADNESS in VS Code: first steps](docs/VS_CODE_FIRST_STEPS.md).
+It walks through installation, the first `# %%` example, and the Variables
+explorer using a small generated dataset. The example is
+[`examples/00_vscode_quickstart.py`](examples/00_vscode_quickstart.py).
+
 Each public MATLAB function will have one corresponding Python module and
 function. There will be no all-in-one pipeline: users will call only the
 individual BROADNESS functions required for their analysis.
@@ -117,7 +122,8 @@ python -m pytest
 ```
 
 See [porting status](docs/PORTING_STATUS.md) for the current coverage of the
-newer MATLAB toolbox. The package is still an incomplete port.
+newer MATLAB toolbox. The three full MATLAB-style Python examples and direct
+MATLAB numerical comparisons are still pending.
 
 ## Indexing convention
 
@@ -135,6 +141,11 @@ resolution of the estimated networks.
 ![BROADNESS spatial activation patterns inside the 1-mm MNI152 brain surface](docs/images/BROADNESS_1mm_SpatialPatterns_Example.png)
 
 ## Data policy
+
+The [VS Code first-steps guide](docs/VS_CODE_FIRST_STEPS.md#6-download-real-example-data-optional)
+shows where to download the published data and exactly where to place the
+averaged and participant `.mat` files. The small quickstart needs no data
+download.
 
 Participant data and generated analysis outputs must remain local and must
 never be committed to the repository. The package contains compact anatomical

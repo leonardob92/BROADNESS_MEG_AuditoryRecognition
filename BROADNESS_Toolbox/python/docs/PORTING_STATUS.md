@@ -35,6 +35,10 @@ still pending; MATLAB's command-line launch did not complete in this workspace.
 The three requested examples are all pending: `BROADNESS_Example`,
 `BROADNESS_Statistics_WithinParticipants_Example`, and
 `BROADNESS_Statistics_MultipleGroupsParticipants_Example`.
+The small, self-contained VS Code lesson and first-use guide are available at
+[`examples/00_vscode_quickstart.py`](../examples/00_vscode_quickstart.py) and
+[`docs/VS_CODE_FIRST_STEPS.md`](VS_CODE_FIRST_STEPS.md). They are the first part
+of step 6; the three full examples and final parity checks are the next part.
 
 ## External functionality
 

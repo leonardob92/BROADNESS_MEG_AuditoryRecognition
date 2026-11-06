@@ -5,5 +5,5 @@ dependencies:
   - python=3.11
   - pip>=24
   - pip:
-      - -e .[test]
+      - -e .[vscode]
 

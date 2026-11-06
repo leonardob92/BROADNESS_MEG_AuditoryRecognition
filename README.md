@@ -20,6 +20,7 @@ Please, note #1:
 Please, note #2:
 
 -The BROADNESS Toolbox has separate [MATLAB](BROADNESS_Toolbox/matlab) and [Python](BROADNESS_Toolbox/python) folders. The MATLAB functions and examples are in `BROADNESS_Toolbox/matlab`; the Python package is being updated to cover the same functionality.
+-The BROADNESS Toolbox has separate [MATLAB](BROADNESS_Toolbox/matlab) and [Python](BROADNESS_Toolbox/python) folders. The MATLAB functions and examples are in `BROADNESS_Toolbox/matlab`. New Python users can start with the [VS Code first-steps guide](BROADNESS_Toolbox/python/docs/VS_CODE_FIRST_STEPS.md); the three full Python examples are being prepared.
 
 The conceptualization and code implementation of the Toolbox were carried out in collaboration with Dr. Mattia Rosso (https://github.com/mattiaRosso92).
 Corresponding authors: Leonardo Bonetti - leonardo.bonetti@clin.au.dk; leonardo.bonetti@psych.ox.ac.uk; Mattia Rosso - mattia.rosso@clin.au.dk
