@@ -12,6 +12,7 @@ from numpy.typing import ArrayLike
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
+from .BROADNESS_FigureSettings import BROADNESS_FigureSettings
 from ._spatial import coordinates, field
 
 
@@ -77,10 +78,15 @@ def BROADNESS_SpatialActivationClustering(
     large cost of MATLAB's 100 restarts and full silhouette calculation;
     increase both options when reproducing an analysis closely.
     """
-    _ = (scatterplots, brainmarkersize, braincolorintensity, figurelayout,
-         figureoutpath, figureformats, figureprefix)
-    if figuremode != "off":
-        raise NotImplementedError("clustering figures are part of the plotting step; use figuremode='off' for numerical analysis")
+    if scatterplots not in (None, "all"):
+        raise ValueError("scatterplots must be None or 'all'")
+    if not brainmarkersize > 0 or not 0 < braincolorintensity <= 1:
+        raise ValueError("brainmarkersize and braincolorintensity must be positive")
+    figure_settings = BROADNESS_FigureSettings(
+        figuremode, figurelayout,
+        OutputPath if OutputPath is not None else (outpath if outpath is not None else figureoutpath),
+        figureformats, figureprefix, "SpatialActivationClustering",
+    )
     raw = np.asarray(field(BROADNESS, "ActivationPatterns_BrainNetworks"), dtype=float)
     original = np.asarray(field(BROADNESS, "OriginalData"))
     if raw.ndim != 2 or original.shape[0] != raw.shape[0] or not np.all(np.isfinite(raw)):
@@ -187,6 +193,11 @@ def BROADNESS_SpatialActivationClustering(
             path = destination / f"SpatialActivationClustering_OptimalK_{optimal_k}_Cluster_{cluster}.nii.gz"
             nib.save(nib.Nifti1Image(volume, template.affine, template.header), str(path))
             result.NIfTIFiles.append(path)
+    if figure_settings.Mode != "off":
+        from ._analysis_figures import clustering_figures
+
+        result.Figures = clustering_figures(result, coords, figure_settings, scatterplots,
+                                            brainmarkersize, braincolorintensity)
     return result, result.Figures
 
 

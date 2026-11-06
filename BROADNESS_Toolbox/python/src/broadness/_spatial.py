@@ -200,8 +200,8 @@ def validate_options(permutations: int, clusteralpha: float, alpha: float, rando
         raise ValueError("alpha and clusteralpha must be between 0 and 1")
     if not isinstance(randomseed, (int, np.integer)):
         raise ValueError("randomseed must be an integer")
-    if figuremode != "off":
-        raise NotImplementedError("spatial figures are implemented in the plotting step; use figuremode='off' for numerical analysis")
+    if figuremode not in ("off", "show", "save", "both"):
+        raise ValueError("figuremode must be 'off', 'show', 'save', or 'both'")
 
 
 def pairs_or_default(pairs: object, n: int) -> np.ndarray:

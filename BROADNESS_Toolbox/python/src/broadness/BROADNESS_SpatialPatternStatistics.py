@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy.stats import f as f_dist, t as t_dist
 
+from .BROADNESS_FigureSettings import BROADNESS_FigureSettings
 from .BROADNESS_RepeatedMeasuresANOVA import BROADNESS_RepeatedMeasuresANOVA
 from ._spatial import (
     SUMMARY_NAMES, cluster_outputs, coordinates, fdr, label_clusters,
@@ -35,7 +36,9 @@ def BROADNESS_SpatialPatternStatistics(
     validate_options(permutations, clusteralpha, alpha, randomseed, figuremode)
     if omnibus not in ("on", "off"):
         raise ValueError("omnibus must be 'on' or 'off'")
-    _ = (figurelayout, OutputPath, figureformats, figureprefix)
+    figure_settings = BROADNESS_FigureSettings(figuremode, figurelayout, OutputPath,
+                                               figureformats, figureprefix,
+                                               "SpatialPatternStatistics")
     maps, pcs = maps_and_components(BROADNESS, principalcomps)
     n_sources, _, n_conditions, n_participants = maps.shape
     if n_conditions < 2 or n_participants < 2:
@@ -180,6 +183,11 @@ def BROADNESS_SpatialPatternStatistics(
                     Voxelwise=Result(Pairwise=pairwise, Omnibus=omni),
                     Summary=summary, SummaryTests=Result(Pairwise=summary_pairwise, ANOVA=summary_anova),
                     Settings=settings, Figures=figures)
+    if figure_settings.Mode != "off":
+        from ._analysis_figures import paired_spatial_figures
+
+        figures = paired_spatial_figures(result, figure_settings)
+        result.Figures = figures
     return result, figures
 
 

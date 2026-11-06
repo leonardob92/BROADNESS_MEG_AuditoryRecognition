@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy.stats import f as f_dist, t as t_dist
 
+from .BROADNESS_FigureSettings import BROADNESS_FigureSettings
 from ._spatial import (
     SUMMARY_NAMES, cluster_outputs, coordinates, fdr, label_clusters,
     maps_and_components, names_or_default, pairs_or_default, prepare_maps,
@@ -34,7 +35,9 @@ def BROADNESS_SpatialPatternGroupStatistics(
     counts shown in tests for final scientific inference.
     """
     validate_options(permutations, clusteralpha, alpha, randomseed, figuremode)
-    _ = (figurelayout, OutputPath, figureformats, figureprefix)
+    figure_settings = BROADNESS_FigureSettings(figuremode, figurelayout, OutputPath,
+                                               figureformats, figureprefix,
+                                               "SpatialPatternGroupStatistics")
     maps, pcs = maps_and_components(BROADNESS, principalcomps)
     n_sources, _, n_conditions, n_participants = maps.shape
     labels = np.asarray(group_labels)
@@ -199,6 +202,11 @@ def BROADNESS_SpatialPatternGroupStatistics(
                     Summary=summary,
                     SummaryTests=Result(Pairwise=summary_pairwise, OverallANOVA=summary_overall),
                     Settings=settings, Figures=figures)
+    if figure_settings.Mode != "off":
+        from ._analysis_figures import group_spatial_figures
+
+        figures = group_spatial_figures(result, figure_settings)
+        result.Figures = figures
     return result, figures
 
 

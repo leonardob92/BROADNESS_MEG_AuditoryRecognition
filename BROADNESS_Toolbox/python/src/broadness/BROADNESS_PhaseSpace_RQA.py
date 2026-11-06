@@ -9,6 +9,8 @@ import pandas as pd
 from numpy.typing import ArrayLike
 from scipy.spatial.distance import pdist, squareform
 
+from .BROADNESS_FigureSettings import BROADNESS_FigureSettings
+
 
 def _runs(bits: np.ndarray) -> np.ndarray:
     padded = np.r_[False, bits.astype(bool), False].astype(np.int8)
@@ -115,10 +117,12 @@ def BROADNESS_PhaseSpace_RQA(
         raise ValueError("at least two time points are required")
     if theiler_window is not None and theiler_window >= selected.size - 1:
         raise ValueError("theiler_window must leave an eligible time pair")
+    if figure not in ("on", "off") or video not in ("on", "off"):
+        raise ValueError("figure and video must be 'on' or 'off'")
     mode = figuremode or ("show" if figure == "on" else "off")
-    if mode != "off" or video != "off":
-        raise NotImplementedError("phase-space figures and video are part of the plotting step; use figuremode='off' and video='off' for numerical analysis")
-    _ = (figurelayout, OutputPath, figureformats, figureprefix, outpath)
+    settings = BROADNESS_FigureSettings(mode, figurelayout,
+                                        OutputPath if OutputPath is not None else outpath,
+                                        figureformats, figureprefix, "PhaseSpace_RQA")
 
     trajectories = scores[np.ix_(selected, pcs - 1, np.arange(scores.shape[2]), np.arange(scores.shape[3]))].copy()
     center = np.zeros(pcs.size)
@@ -156,7 +160,7 @@ def BROADNESS_PhaseSpace_RQA(
         mean_coordinates[condition, 0] = trajectories[:, :, condition, :].mean(axis=2)
         for participant in range(n_participants):
             participant_coordinates[condition, participant] = trajectories[:, :, condition, participant]
-    figures = SimpleNamespace(Handles=[], Files=[])
+    figures = SimpleNamespace(Handles=[], Files=[], Animations=[])
     result = SimpleNamespace(
         PhaseSpace=SimpleNamespace(
             Time=times[selected], PCs=pcs, ParticipantCoordinates=participant_coordinates,
@@ -171,6 +175,18 @@ def BROADNESS_PhaseSpace_RQA(
         RQA_metrics=tables,
         Figures=figures,
     )
+    if settings.Mode != "off":
+        from ._analysis_figures import rqa_figures
+
+        figures = rqa_figures(result, threshold, theiler_window, settings)
+        figures.Animations = []
+        result.Figures = figures
+    if video == "on":
+        from ._analysis_figures import rqa_video
+
+        animations, handles = rqa_video(result)
+        figures.Animations.extend(animations)
+        figures.Handles.extend(handles)
     return result, figures
 
 

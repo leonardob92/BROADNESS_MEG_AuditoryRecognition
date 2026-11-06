@@ -117,6 +117,39 @@ def test_dynamic_activity_plots_share_a_symmetric_color_scale():
     assert limits[0][0] == -limits[0][1]
 
 
+def test_figuremode_off_skips_plots_without_coordinates():
+    result, _ = _visualizer_inputs()
+    visualization = BROADNESS_Visualizer(
+        result,
+        {"WhichPlots": [1, 1, 1, 1, 0], "FigureMode": "off", "ncomps": [1]},
+        show=False,
+    )
+    assert visualization.Figures.Handles == []
+    assert visualization.Figures.Files == []
+    assert visualization.spatial_pattern_figure is None
+
+
+def test_summary_figure_export_uses_common_folder(tmp_path):
+    result, _ = _visualizer_inputs()
+    visualization = BROADNESS_Visualizer(
+        result,
+        {
+            "WhichPlots": [1, 1, 1, 0, 0],
+            "FigureMode": "save",
+            "FigureLayout": "summary",
+            "FigureFormats": ["png"],
+            "FigurePrefix": "Study",
+            "OutputPath": tmp_path,
+            "ncomps": [1, 2],
+        },
+        show=False,
+    )
+    assert visualization.Figures.Handles == []
+    assert len(visualization.Figures.Files) == 3
+    assert all(path.is_file() and path.parent == tmp_path / "BROADNESS_Figures" / "Visualizer" for path in visualization.Figures.Files)
+    assert all(path.name.startswith("Study_") for path in visualization.Figures.Files)
+
+
 @pytest.mark.parametrize("number_dimensions", [2, 3])
 def test_two_and_three_dimensional_results_are_supported(number_dimensions):
     result, _ = _visualizer_inputs()
@@ -200,6 +233,7 @@ def test_nifti_and_excel_outputs_are_independent_between_components(tmp_path):
     assert len(visualization.activation_table_paths) == 2
     assert all(path.is_file() for path in visualization.nifti_paths)
     assert all(path.is_file() for path in visualization.activation_table_paths)
+    assert all(path.parent == tmp_path / "BROADNESS_nifti" for path in visualization.nifti_paths)
 
     volumes = [np.asarray(nib.load(path).dataobj) for path in visualization.nifti_paths]
     assert np.count_nonzero(volumes[0]) == 1

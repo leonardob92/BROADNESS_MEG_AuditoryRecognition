@@ -65,8 +65,28 @@ maps from a common decomposition. Permutation/bootstrap defaults are 1,000;
 small counts are suitable only for software checks. Clustering uses a limited
 number of k-means restarts and silhouette sample by default to control cost.
 RQA recurrence matrices scale quadratically with the number of time samples.
-Figure generation for these new functions is still part of the next porting
-step; use the default `figuremode="off"` for numerical analysis.
+Figure generation is optional. Use `figuremode="save"` with an `OutputPath` to
+write figures, or keep the default `figuremode="off"` for numerical analysis.
+For example:
+
+```python
+from broadness import BROADNESS_Plot_ActivationTimeseries
+
+figures = BROADNESS_Plot_ActivationTimeseries(
+    pca.TimeSeries_BrainNetworks,
+    pca.Time,
+    FigureMode="save",
+    FigureLayout="both",
+    OutputPath="./Output",
+)
+print(figures.Files)
+```
+
+Figure modes are `off`, `show`, `save`, and `both`; layouts are `individual`,
+`summary`, and `both`. PNG and PDF exports work across the figure functions.
+The `fig` option saves a Python Matplotlib pickle for local editing; it cannot
+be opened as a MATLAB `.fig` file. Open only trusted pickle files. The
+visualizer also accepts these figure options in its `Options` dictionary.
 
 ## Environment setup
 

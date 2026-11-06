@@ -23,8 +23,12 @@ Options are supplied in a dictionary using the established MATLAB names:
 ``WhichPlots``
     Five binary values selecting the outputs listed above. If omitted, all
     five outputs are requested.
-``name_nii``
-    Output directory used when NIfTI export is selected.
+``OutputPath``
+    Base directory for saved figures and NIfTI/Excel output. ``name_nii`` is
+    accepted as a deprecated alias.
+``FigureMode``, ``FigureLayout``, ``FigureFormats``, ``FigurePrefix``
+    Common figure options matching the MATLAB toolbox. Saved figures go to
+    ``OutputPath/BROADNESS_Figures/Visualizer``.
 ``MNI_coords``
     MNI coordinates with dimensions ``sources x 3``. Required for the 3D
     spatial plot and NIfTI export.
@@ -55,8 +59,7 @@ Generate activity, variance, time-series, and spatial-pattern figures::
     VISUALIZATION = BROADNESS_Visualizer(BROADNESS, Options)
 
 To export NIfTI images and Excel tables, select the fifth output and provide
-``name_nii``. Files are written inside
-``name_nii/BROADNESS_Output/BROADNESS_nifti``.
+``OutputPath``. Files are written inside ``OutputPath/BROADNESS_nifti``.
 
 OUTPUT
 ------
@@ -67,6 +70,7 @@ this object themselves. Use, for example::
     VISUALIZATION.variance_figure
     VISUALIZATION.time_series_figures
     VISUALIZATION.nifti_paths
+    VISUALIZATION.Figures.Files
 
 INDEXING
 --------
@@ -93,14 +97,19 @@ mattia.rosso@clin.au.dk
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from contextlib import nullcontext
+from dataclasses import dataclass, field as dataclass_field, replace
 from functools import lru_cache
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, TYPE_CHECKING
 import warnings
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+
+from .BROADNESS_FigureSettings import BROADNESS_FigureSettings
+from .BROADNESS_FinalizeFigure import BROADNESS_FinalizeFigure
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -129,6 +138,14 @@ class BROADNESSVisualization:
     spatial_pattern_figure: Figure | None
     nifti_paths: list[Path]
     activation_table_paths: list[Path]
+    figure_paths: list[Path] = dataclass_field(default_factory=list)
+    figure_handles: list[Figure] = dataclass_field(default_factory=list)
+    spatial_pattern_figures: list[Figure] = dataclass_field(default_factory=list)
+
+    @property
+    def Figures(self) -> SimpleNamespace:
+        """MATLAB-style view of retained figure handles and saved paths."""
+        return SimpleNamespace(Handles=self.figure_handles, Files=self.figure_paths)
 
 
 @dataclass(slots=True)
@@ -638,6 +655,68 @@ def _time_series_plots(
     return figures
 
 
+def _dynamic_activity_summary(data: FloatArray, time: FloatArray, labels: list[str]) -> Figure:
+    """Combine all condition activity maps with a common symmetric scale."""
+    plt = _matplotlib()
+    count = len(labels)
+    columns = min(3, count)
+    rows = int(np.ceil(count / columns))
+    figure, axes = plt.subplots(rows, columns, figsize=(5 * columns, 4 * rows),
+                                constrained_layout=True, squeeze=False)
+    average = data.mean(axis=3)
+    limit = max(float(np.max(np.abs(average))), 1e-12)
+    image = None
+    for condition, axis in enumerate(axes.flat):
+        if condition >= count:
+            axis.set_visible(False)
+            continue
+        image = axis.imshow(average[:, :, condition], aspect="auto", origin="upper",
+                            extent=(float(time[0]), float(time[-1]), data.shape[0] + 0.5, 0.5),
+                            cmap="RdBu_r", vmin=-limit, vmax=limit, rasterized=True)
+        axis.set_title(labels[condition])
+        axis.set_xlabel("Time (s)")
+        axis.set_ylabel("Brain source")
+    figure.suptitle("Dynamic Brain Activity")
+    if image is not None:
+        figure.colorbar(image, ax=list(axes.flat), shrink=0.8, label="Amplitude")
+    return figure
+
+
+def _time_series_summary(
+    inputs: _VisualizerInputs, components: IntegerArray,
+    labels: list[str], colors: FloatArray,
+) -> Figure:
+    """Put selected network time courses in a single grid."""
+    plt = _matplotlib()
+    columns = min(3, int(np.ceil(np.sqrt(len(components)))))
+    rows = int(np.ceil(len(components) / columns))
+    figure, axes = plt.subplots(rows, columns, figsize=(5 * columns, 3.7 * rows),
+                                constrained_layout=True, squeeze=False)
+    average = inputs.time_series.mean(axis=3)
+    sem = None
+    if inputs.has_participants:
+        sem = inputs.time_series.std(axis=3, ddof=1) / np.sqrt(inputs.time_series.shape[3])
+    for position, axis in enumerate(axes.flat):
+        if position >= len(components):
+            axis.set_visible(False)
+            continue
+        component = components[position]
+        for condition, label in enumerate(labels):
+            values = average[:, component, condition]
+            if sem is not None:
+                error = sem[:, component, condition]
+                axis.fill_between(inputs.time, values - error, values + error,
+                                  color=colors[condition], alpha=0.18, linewidth=0)
+            axis.plot(inputs.time, values, color=colors[condition], linewidth=1.7, label=label)
+        axis.set_title(f"Network {component + 1}")
+        axis.set_xlabel("Time (s)")
+        axis.set_ylabel("Component amplitude")
+        _format_axis(axis)
+        axis.legend(fontsize="small", frameon=False)
+    figure.suptitle("Brain Network Time Series")
+    return figure
+
+
 def _sample_standard_deviation(values: FloatArray) -> float:
     """Match MATLAB's default sample standard deviation."""
     if values.size < 2:
@@ -847,7 +926,7 @@ def _nifti_and_table_output(
     coordinate_rows = np.flatnonzero(valid_coordinates)[in_bounds]
     voxel_indices = voxel_indices[in_bounds]
 
-    output_directory = output_root / "BROADNESS_Output" / "BROADNESS_nifti"
+    output_directory = output_root / "BROADNESS_nifti"
     output_directory.mkdir(parents=True, exist_ok=True)
     nifti_paths: list[Path] = []
     table_paths: list[Path] = []
@@ -957,13 +1036,27 @@ def BROADNESS_Visualizer(
     if Options is None:
         raise TypeError('"Options" must be a mapping or object with option fields')
 
+    output_path = _field(Options, "OutputPath", required=False)
+    legacy_path = _field(Options, "name_nii", required=False)
+    if output_path is not None and legacy_path is not None and str(output_path) != str(legacy_path):
+        warnings.warn("Options.name_nii is ignored because OutputPath was provided", UserWarning, stacklevel=2)
+    output_path = output_path if output_path is not None else legacy_path
+    settings = BROADNESS_FigureSettings(
+        _field(Options, "FigureMode", required=False) or "show",
+        _field(Options, "FigureLayout", required=False) or "individual",
+        output_path,
+        _field(Options, "FigureFormats", required=False) or ("png",),
+        _field(Options, "FigurePrefix", required=False) or "",
+        "Visualizer",
+    )
+
     print("Checking visualizer inputs")
     inputs = _canonical_inputs(BROADNESS)
     which_plots = _which_plots(Options)
     components = _selected_components(BROADNESS, Options, inputs)
     labels = _labels(Options, inputs.data.shape[2])
     if (
-        which_plots[2]
+        which_plots[2] and settings.Mode != "off"
         and components.size > 0
         and inputs.time_series.shape[1] <= int(np.max(components))
     ):
@@ -1004,7 +1097,7 @@ def BROADNESS_Visualizer(
     )
 
     coordinates: FloatArray | None = None
-    if which_plots[3] or which_plots[4]:
+    if (which_plots[3] and settings.Mode != "off") or which_plots[4]:
         coordinates = _mni_coordinates(
             Options,
             inputs.activation_patterns.shape[0],
@@ -1012,28 +1105,32 @@ def BROADNESS_Visualizer(
 
     output_root: Path | None = None
     if which_plots[4]:
-        name_nii = _field(Options, "name_nii")
-        if not isinstance(name_nii, (str, Path)):
-            raise TypeError('"Options.name_nii" must be a string or pathlib.Path')
-        output_root = Path(name_nii).expanduser()
+        if output_path is None:
+            raise ValueError("Options.OutputPath or name_nii is required for NIfTI output")
+        if not isinstance(output_path, (str, Path)):
+            raise TypeError('"Options.OutputPath" must be a string or pathlib.Path')
+        output_root = Path(output_path).expanduser()
 
-    plt = _matplotlib()
+    plt = _matplotlib() if settings.Mode != "off" else None
     dynamic_figures: list[Figure] = []
     variance_figure: Figure | None = None
     time_series_figures: list[Figure] = []
     spatial_pattern_figure: Figure | None = None
+    spatial_pattern_figures: list[Figure] = []
     nifti_paths: list[Path] = []
     table_paths: list[Path] = []
+    figure_jobs: list[tuple[Figure, str]] = []
 
-    with plt.rc_context(_publication_style()):
-        if which_plots[0]:
-            dynamic_figures = _dynamic_activity_plots(
-                inputs.data,
-                inputs.time,
-                labels,
-            )
+    context = plt.rc_context(_publication_style()) if plt is not None else nullcontext()
+    with context:
+        if which_plots[0] and settings.Mode != "off":
+            if settings.MakeIndividual:
+                dynamic_figures = _dynamic_activity_plots(inputs.data, inputs.time, labels)
+                figure_jobs.extend((fig, f"DynamicActivity_Condition_{i:02d}") for i, fig in enumerate(dynamic_figures, start=1))
+            if settings.MakeSummary:
+                figure_jobs.append((_dynamic_activity_summary(inputs.data, inputs.time, labels), "DynamicActivity_Summary"))
 
-        if which_plots[1]:
+        if which_plots[1] and settings.Mode != "off":
             if not inputs.is_pca:
                 warnings.warn(
                     "Variance information is unavailable for this result; "
@@ -1048,23 +1145,30 @@ def BROADNESS_Visualizer(
                     inputs.variance_permutations,
                     number_variance_components,
                 )
+                figure_jobs.append((variance_figure, "VarianceExplained"))
 
-        if which_plots[2]:
-            time_series_figures = _time_series_plots(
-                inputs,
-                components,
-                labels,
-                condition_colors,
-            )
+        if which_plots[2] and settings.Mode != "off":
+            if settings.MakeIndividual:
+                time_series_figures = _time_series_plots(inputs, components, labels, condition_colors)
+                figure_jobs.extend((fig, f"NetworkTimeSeries_Network_{component + 1:02d}") for fig, component in zip(time_series_figures, components))
+            if settings.MakeSummary:
+                figure_jobs.append((_time_series_summary(inputs, components, labels, condition_colors), "NetworkTimeSeries_Summary"))
 
-        if which_plots[3]:
+        if which_plots[3] and settings.Mode != "off":
             print("Generating 3D topographic plot of brain networks")
-            spatial_pattern_figure = _spatial_pattern_plot(
-                inputs.activation_patterns,
-                coordinates,
-                components,
-                component_colors,
-            )
+            if settings.MakeIndividual:
+                for position, component in enumerate(components):
+                    fig = _spatial_pattern_plot(inputs.activation_patterns, coordinates,
+                                                np.asarray([component]), component_colors[position:position + 1])
+                    spatial_pattern_figures.append(fig)
+                    figure_jobs.append((fig, f"SpatialPattern_Network_{component + 1:02d}"))
+                spatial_pattern_figure = spatial_pattern_figures[0] if spatial_pattern_figures else None
+            if settings.MakeSummary:
+                summary_figure = _spatial_pattern_plot(inputs.activation_patterns, coordinates,
+                                                       components, component_colors)
+                figure_jobs.append((summary_figure, "SpatialPatterns_Summary"))
+                if spatial_pattern_figure is None:
+                    spatial_pattern_figure = summary_figure
 
         if which_plots[4]:
             nifti_paths, table_paths = _nifti_and_table_output(
@@ -1075,8 +1179,14 @@ def BROADNESS_Visualizer(
                 is_pca=inputs.is_pca,
             )
 
-    if show:
+    figure_paths: list[Path] = []
+    if settings.Save:
+        final_settings = settings if show else replace(settings, Show=False)
+        for fig, filename in figure_jobs:
+            figure_paths.extend(BROADNESS_FinalizeFigure(fig, final_settings, filename))
+    elif settings.Show and show and plt is not None:
         plt.show()
+    figure_handles = [fig for fig, _ in figure_jobs] if settings.Show and (not settings.Save or show) else []
 
     return BROADNESSVisualization(
         dynamic_activity_figures=dynamic_figures,
@@ -1085,6 +1195,9 @@ def BROADNESS_Visualizer(
         spatial_pattern_figure=spatial_pattern_figure,
         nifti_paths=nifti_paths,
         activation_table_paths=table_paths,
+        figure_paths=figure_paths,
+        figure_handles=figure_handles,
+        spatial_pattern_figures=spatial_pattern_figures,
     )
 
 

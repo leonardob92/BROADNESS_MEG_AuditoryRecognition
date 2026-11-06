@@ -32,6 +32,9 @@ from .BROADNESS_PhaseSpaceStatistics import BROADNESS_PhaseSpaceStatistics
 from .BROADNESS_SpatialActivationClustering import BROADNESS_SpatialActivationClustering
 from .BROADNESS_SpatialPatternStatistics import BROADNESS_SpatialPatternStatistics
 from .BROADNESS_SpatialPatternGroupStatistics import BROADNESS_SpatialPatternGroupStatistics
+from .BROADNESS_FigureSettings import BROADNESSFigureSettings, BROADNESS_FigureSettings
+from .BROADNESS_FinalizeFigure import BROADNESS_FinalizeFigure
+from .BROADNESS_Plot_ActivationTimeseries import BROADNESS_Plot_ActivationTimeseries
 
 __version__ = "0.1.0"
 
@@ -43,10 +46,14 @@ __all__ = [
     "BROADNESS_AlternativeNetworkEstimation_ICA",
     "BROADNESS_BehaviourCorrelation",
     "BROADNESS_FDRCorrection",
+    "BROADNESS_FigureSettings",
+    "BROADNESSFigureSettings",
+    "BROADNESS_FinalizeFigure",
     "BROADNESS_EffectiveDimensionality",
     "BROADNESS_NetworkEstimation",
     "BROADNESS_PhaseSpace_RQA",
     "BROADNESS_PhaseSpaceStatistics",
+    "BROADNESS_Plot_ActivationTimeseries",
     "BROADNESS_RepeatedMeasuresANOVA",
     "BROADNESS_SignificantSamplesToWindows",
     "BROADNESS_SpatialActivationClustering",
