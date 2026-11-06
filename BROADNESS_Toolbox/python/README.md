@@ -43,6 +43,31 @@ cluster, with NaN elsewhere; it is not a map of pointwise adjusted p-values.
 The group procedures use an approximate wild bootstrap. Their default is 5,000
 resamples, so use small values only for exploratory runs and software checks.
 
+Phase-space and spatial numerical analysis is also available. For example,
+after estimating networks:
+
+```python
+from broadness import BROADNESS_PhaseSpace_RQA, BROADNESS_PhaseSpaceStatistics
+
+rqa, rqa_figures = BROADNESS_PhaseSpace_RQA(
+    pca, principalcomps=(1, 2), threshold=0.1, theiler_window=1
+)
+phase_stats = BROADNESS_PhaseSpaceStatistics(rqa)
+
+print(rqa.RQA_metrics[0])             # participant 1; one row per condition
+print(phase_stats.Metrics.Speed.shape) # time × conditions × participants
+```
+
+The spatial functions are `BROADNESS_SpatialActivationClustering`,
+`BROADNESS_SpatialPatternStatistics`, and
+`BROADNESS_SpatialPatternGroupStatistics`. Spatial inference needs individual
+maps from a common decomposition. Permutation/bootstrap defaults are 1,000;
+small counts are suitable only for software checks. Clustering uses a limited
+number of k-means restarts and silhouette sample by default to control cost.
+RQA recurrence matrices scale quadratically with the number of time samples.
+Figure generation for these new functions is still part of the next porting
+step; use the default `figuremode="off"` for numerical analysis.
+
 ## Environment setup
 
 Use Python 3.11 or newer. From this directory, create and activate a virtual

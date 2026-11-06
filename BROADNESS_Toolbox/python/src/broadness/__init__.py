@@ -27,6 +27,11 @@ from .BROADNESS_TemporalClusterCorrection import BROADNESS_TemporalClusterCorrec
 from .BROADNESS_TemporalClusterCorrection_ANOVA import BROADNESS_TemporalClusterCorrection_ANOVA
 from .BROADNESS_TemporalClusterCorrection_Groups import BROADNESS_TemporalClusterCorrection_Groups
 from .BROADNESS_TemporalClusterCorrection_GroupANOVA import BROADNESS_TemporalClusterCorrection_GroupANOVA
+from .BROADNESS_PhaseSpace_RQA import BROADNESS_PhaseSpace_RQA
+from .BROADNESS_PhaseSpaceStatistics import BROADNESS_PhaseSpaceStatistics
+from .BROADNESS_SpatialActivationClustering import BROADNESS_SpatialActivationClustering
+from .BROADNESS_SpatialPatternStatistics import BROADNESS_SpatialPatternStatistics
+from .BROADNESS_SpatialPatternGroupStatistics import BROADNESS_SpatialPatternGroupStatistics
 
 __version__ = "0.1.0"
 
@@ -40,8 +45,13 @@ __all__ = [
     "BROADNESS_FDRCorrection",
     "BROADNESS_EffectiveDimensionality",
     "BROADNESS_NetworkEstimation",
+    "BROADNESS_PhaseSpace_RQA",
+    "BROADNESS_PhaseSpaceStatistics",
     "BROADNESS_RepeatedMeasuresANOVA",
     "BROADNESS_SignificantSamplesToWindows",
+    "BROADNESS_SpatialActivationClustering",
+    "BROADNESS_SpatialPatternStatistics",
+    "BROADNESS_SpatialPatternGroupStatistics",
     "BROADNESS_TemporalClusterCorrection",
     "BROADNESS_TemporalClusterCorrection_ANOVA",
     "BROADNESS_TemporalClusterCorrection_GroupANOVA",

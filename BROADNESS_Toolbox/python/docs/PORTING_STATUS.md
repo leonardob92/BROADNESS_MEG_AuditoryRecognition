@@ -4,7 +4,7 @@ Reference MATLAB version: `main` at `7a8d54b` (2 November 2026), now copied to
 the sibling `matlab` directory. Compare against that version before implementing
 or updating each Python function.
 
-The Python package currently has 12 of the 20 functions in
+The Python package currently has 17 of the 20 functions in
 `matlab/BROADNESS_Functions`, plus `BROADNESS_Startup`. “Implemented” means
 source and Python tests are present. Direct MATLAB numerical comparisons are
 still pending; MATLAB's command-line launch did not complete in this workspace.
@@ -18,14 +18,14 @@ still pending; MATLAB's command-line launch did not complete in this workspace.
 | `BROADNESS_FigureSettings` | Missing | Common plot and export options. |
 | `BROADNESS_FinalizeFigure` | Missing | Common figure export. |
 | `BROADNESS_NetworkEstimation` | Updated | `components_num`, common PCA centering, retained components, and participant spatial patterns have Python tests; direct MATLAB comparison pending. |
-| `BROADNESS_PhaseSpaceStatistics` | Missing | Phase-space tests, metrics, and corrections. |
-| `BROADNESS_PhaseSpace_RQA` | Missing | Recurrence metrics and plots. |
+| `BROADNESS_PhaseSpaceStatistics` | Implemented | Descriptive metrics, Hotelling tests, scalar tests, mixed ANOVA, and corrections; direct MATLAB numerical comparison pending. |
+| `BROADNESS_PhaseSpace_RQA` | Numerical analysis implemented | Recurrence matrices and eight measures are tested; figures/video remain for the plotting step. |
 | `BROADNESS_Plot_ActivationTimeseries` | Missing | Statistical time-series plots. |
 | `BROADNESS_RepeatedMeasuresANOVA` | Implemented | Time-resolved condition test, Greenhouse–Geisser correction, and family-wide FDR. |
 | `BROADNESS_SignificantSamplesToWindows` | Implemented | Convert masks into time windows. |
-| `BROADNESS_SpatialActivationClustering` | Missing | Clustering, results, plots, and optional NIfTI export. |
-| `BROADNESS_SpatialPatternGroupStatistics` | Missing | Independent-group spatial inference. |
-| `BROADNESS_SpatialPatternStatistics` | Missing | Within-participant spatial inference. |
+| `BROADNESS_SpatialActivationClustering` | Numerical analysis implemented | Thresholding, breadth ordering, silhouette selection, tables, and optional NIfTI export; figures remain for the plotting step. Python defaults use 10 k-means restarts and a 500-source silhouette sample to control cost. |
+| `BROADNESS_SpatialPatternGroupStatistics` | Numerical analysis implemented | Welch maps, wild-bootstrap cluster inference, spatial summaries, and FDR; figures remain for the plotting step. |
+| `BROADNESS_SpatialPatternStatistics` | Numerical analysis implemented | Paired sign-flip maps, optional repeated-measures F map, spatial summaries, and FDR; figures remain for the plotting step. |
 | `BROADNESS_TemporalClusterCorrection` | Implemented | Paired whole-series sign flips; cluster-level inference per network and condition pair. |
 | `BROADNESS_TemporalClusterCorrection_ANOVA` | Implemented | Complete condition-label permutations within participants; per-network nulls. |
 | `BROADNESS_TemporalClusterCorrection_GroupANOVA` | Implemented | Welch ANOVA with group-centered wild bootstrap; approximate cluster inference. |
@@ -41,7 +41,7 @@ The three requested examples are all pending: `BROADNESS_Example`,
 | MATLAB external component | Python approach |
 | --- | --- |
 | `jadeR.m` | Python now implements real-valued JADE with PCA whitening, fourth-order cumulants, joint diagonalization, and MATLAB's ordering/sign conventions. Direct MATLAB comparison remains pending. |
-| `dl.m`, `tt.m`, `entropy.m` | Implement the recurrence line statistics and entropy used by RQA. |
+| `dl.m`, `tt.m`, `entropy.m` | Python now computes diagonal/vertical recurrence runs and natural-log entropy directly for RQA. Direct MATLAB numerical comparison remains pending. |
 | `NIfTI_20140122` | Use `nibabel` for the needed NIfTI reads and writes; the 42 MATLAB helper files do not need individual translations. |
 | MNI coordinates and brain templates | The small 8-mm coordinate/template files and compact 1-mm surface mesh are packaged with Python. Verify the installed package can use them outside the repository. |
 
