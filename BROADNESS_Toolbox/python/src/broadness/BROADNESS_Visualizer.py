@@ -5,7 +5,8 @@
 =========================================================================
 
 This module provides the public function ``BROADNESS_Visualizer``. It takes
-the output of ``BROADNESS_NetworkEstimation`` (or the future ICA equivalent)
+the output of ``BROADNESS_NetworkEstimation`` or
+``BROADNESS_AlternativeNetworkEstimation_ICA``
 and can produce the same five output families as the MATLAB visualizer:
 
 1. Dynamic brain-activity maps of the original data.

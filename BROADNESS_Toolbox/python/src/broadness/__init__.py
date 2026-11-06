@@ -10,13 +10,19 @@ from .BROADNESS_NetworkEstimation import (
     BROADNESSResult,
     BROADNESS_NetworkEstimation,
 )
+from .BROADNESS_AlternativeNetworkEstimation_ICA import (
+    BROADNESSICAResult,
+    BROADNESS_AlternativeNetworkEstimation_ICA,
+)
 from .BROADNESS_Visualizer import BROADNESSVisualization, BROADNESS_Visualizer
 
 __version__ = "0.1.0"
 
 __all__ = [
     "BROADNESSPaths",
+    "BROADNESSICAResult",
     "BROADNESSResult",
+    "BROADNESS_AlternativeNetworkEstimation_ICA",
     "BROADNESS_EffectiveDimensionality",
     "BROADNESS_NetworkEstimation",
     "BROADNESS_Startup",

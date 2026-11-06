@@ -27,6 +27,8 @@ MAIN OPTIONS
 ``permutations_num`` requests Monte Carlo simulations.
 ``randomization`` selects time (1), space (2), or combined (3) randomization.
 ``sign_eigenvect`` selects ``"occurrences"``, ``"max_abs"``, or ``"average"``.
+``components_num`` retains up to that many leading components (default 30),
+independently of Monte Carlo significance.
 ``random_state`` optionally makes the Python randomization reproducible.
 
 EXAMPLE
@@ -54,6 +56,10 @@ MAIN OUTPUTS
 ``BROADNESS.ActivationPatterns_BrainNetworks`` contains spatial patterns.
 ``BROADNESS.Variance_BrainNetworks`` contains explained variance percentages.
 ``BROADNESS.TimeSeries_BrainNetworks`` contains the network time series.
+``BROADNESS.ActivationPatterns_BrainNetworks_Individual`` contains the
+condition-specific participant maps for four-dimensional input.
+``BROADNESS.SelectedComponents`` lists the retained one-based components and
+``BROADNESS.PCA_Mean`` contains the group centering mean.
 ``BROADNESS.Significant_BrainNetworks`` contains one-based network numbers
 when Monte Carlo simulations are requested.
 ``BROADNESS.VariancePermutations`` contains the mean randomized eigenspectrum,
@@ -123,6 +129,9 @@ class BROADNESSResult:
     Time: FloatArray
     OriginalData: NDArray[np.number]
     VariancePermutations: FloatArray | None = None
+    SelectedComponents: IntegerArray | None = None
+    PCA_Mean: FloatArray | None = None
+    ActivationPatterns_BrainNetworks_Individual: FloatArray | None = None
 
 
 # =========================================================================
@@ -280,13 +289,13 @@ def _randomize_data(
 def _network_time_series(
     original_data: NDArray[np.number],
     activation_patterns: FloatArray,
-    number_components: int,
+    pca_mean: FloatArray,
 ) -> FloatArray:
-    """Project every condition and participant onto the common patterns."""
-    selected_patterns = activation_patterns[:, :number_components]
+    """Project each condition and participant using the group PCA mean."""
+    number_components = activation_patterns.shape[1]
 
     if original_data.ndim == 2:
-        return np.asarray(original_data.T @ selected_patterns, dtype=float)
+        return np.asarray((original_data.T - pca_mean) @ activation_patterns, dtype=float)
 
     if original_data.ndim == 3:
         time_series = np.empty(
@@ -295,7 +304,7 @@ def _network_time_series(
         )
         for condition in range(original_data.shape[2]):
             time_series[:, :, condition] = (
-                original_data[:, :, condition].T @ selected_patterns
+                (original_data[:, :, condition].T - pca_mean) @ activation_patterns
             )
         return time_series
 
@@ -315,9 +324,35 @@ def _network_time_series(
         )
         for condition in range(original_data.shape[2]):
             time_series[:, :, condition, participant] = (
-                original_data[:, :, condition, participant].T @ selected_patterns
+                (original_data[:, :, condition, participant].T - pca_mean)
+                @ activation_patterns
             )
     return time_series
+
+
+def _individual_activation_patterns(
+    original_data: NDArray[np.number],
+    time_series: FloatArray,
+    pca_mean: FloatArray,
+) -> FloatArray:
+    """Estimate condition-specific participant maps by dual regression."""
+    if original_data.ndim != 4:
+        return np.empty(0, dtype=float)
+
+    n_sources, _, n_conditions, n_participants = original_data.shape
+    n_components = time_series.shape[1]
+    individual_patterns = np.empty(
+        (n_sources, n_components, n_conditions, n_participants), dtype=float
+    )
+    for participant in range(n_participants):
+        for condition in range(n_conditions):
+            centered = original_data[:, :, condition, participant].T - pca_mean
+            participant_scores = time_series[:, :, condition, participant]
+            matlab_rcond = max(participant_scores.shape) * np.finfo(float).eps
+            individual_patterns[:, :, condition, participant] = (
+                np.linalg.pinv(participant_scores, rcond=matlab_rcond) @ centered
+            ).T
+    return individual_patterns
 
 
 # =========================================================================
@@ -333,6 +368,7 @@ def BROADNESS_NetworkEstimation(
     permutations_num: int = 0,
     randomization: int = 1,
     sign_eigenvect: str = "max_abs",
+    components_num: int = 30,
     random_state: int | None = None,
 ) -> BROADNESSResult:
     """Estimate broadband brain networks using PCA.
@@ -357,6 +393,10 @@ def BROADNESS_NetworkEstimation(
     sign_eigenvect
         Eigenvector sign convention: ``"occurrences"``, ``"max_abs"``, or
         ``"average"``. The default is ``"max_abs"``.
+    components_num
+        Maximum number of leading PCA components retained in the spatial
+        patterns and time series. Defaults to 30 and is independent of Monte
+        Carlo significance.
     random_state
         Optional seed for reproducible Python Monte Carlo randomization.
 
@@ -390,6 +430,9 @@ def BROADNESS_NetworkEstimation(
     randomization = _positive_integer(randomization, "randomization", allow_zero=False)
     if randomization not in (1, 2, 3):
         raise ValueError("randomization must be 1, 2, or 3")
+    components_num = _positive_integer(
+        components_num, "components_num", allow_zero=False
+    )
 
     if isinstance(permutations_num, (int, np.integer)) and int(permutations_num) < 0:
         warnings.warn(
@@ -433,6 +476,7 @@ def BROADNESS_NetworkEstimation(
         averaged_data = data_for_pca
 
     activation_patterns, variance = _compute_pca(averaged_data)
+    pca_mean = np.mean(averaged_data, axis=1, dtype=float)
 
     # ----------------------- PCA on randomized data --------------------------
     variance_permutations: FloatArray | None = None
@@ -456,45 +500,44 @@ def BROADNESS_NetworkEstimation(
         maximum_randomized_variance = float(np.max(randomized_variance))
         significant_indices = np.flatnonzero(variance > maximum_randomized_variance)
         significant_networks = significant_indices.astype(np.int64) + 1
-        number_time_series = significant_networks.size
 
-        if number_time_series == 0:
+        if significant_networks.size == 0:
             print("There are no PCs (brain networks) that survived MCS")
         else:
             print("Percentage of variance explained by significant PCs (brain networks)")
             print(variance[significant_indices])
     else:
         significant_networks = "MCS has not been run"
-        number_time_series = variance.size
 
     # ---------------------- Normalize eigenvector signs ----------------------
     activation_patterns = _normalize_eigenvector_signs(
         activation_patterns,
         sign_method,
     )
+    selected_count = min(components_num, activation_patterns.shape[1])
+    selected_components = np.arange(1, selected_count + 1, dtype=np.int64)
+    selected_patterns = activation_patterns[:, :selected_count]
 
     # -------------------------- Prepare output -------------------------------
     print("Preparing output")
-    if number_time_series == 0:
-        time_series = np.empty(0, dtype=float)
-    else:
-        time_series = _network_time_series(
-            analysed_data,
-            activation_patterns,
-            number_time_series,
-        )
+    time_series = _network_time_series(
+        analysed_data, selected_patterns, pca_mean
+    )
+    individual_patterns = _individual_activation_patterns(
+        analysed_data, time_series, pca_mean
+    )
 
     return BROADNESSResult(
         Variance_BrainNetworks=np.asarray(variance, dtype=float),
         Significant_BrainNetworks=significant_networks,
-        ActivationPatterns_BrainNetworks=np.asarray(
-            activation_patterns,
-            dtype=float,
-        ),
+        ActivationPatterns_BrainNetworks=np.asarray(selected_patterns, dtype=float),
         TimeSeries_BrainNetworks=time_series,
         Time=np.asarray(analysed_time, dtype=float),
         OriginalData=analysed_data,
         VariancePermutations=variance_permutations,
+        SelectedComponents=selected_components,
+        PCA_Mean=pca_mean,
+        ActivationPatterns_BrainNetworks_Individual=individual_patterns,
     )
 
 

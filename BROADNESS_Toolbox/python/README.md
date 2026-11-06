@@ -7,6 +7,24 @@ Each public MATLAB function will have one corresponding Python module and
 function. There will be no all-in-one pipeline: users will call only the
 individual BROADNESS functions required for their analysis.
 
+PCA and ICA are available with the same input axis order as MATLAB:
+
+```python
+from broadness import (
+    BROADNESS_NetworkEstimation,
+    BROADNESS_AlternativeNetworkEstimation_ICA,
+)
+
+pca = BROADNESS_NetworkEstimation(data, time, components_num=30)
+ica = BROADNESS_AlternativeNetworkEstimation_ICA(data, time, icacomps=10)
+```
+
+`data` has shape sources × time × [conditions] × [participants]. The PCA
+result includes group patterns, network time series, and participant-specific
+spatial patterns when participant data are provided. ICA uses the JADE method
+from MATLAB's `jadeR.m`; it can choose a component count automatically from
+`total_varexp` when `icacomps` is omitted.
+
 ## Environment setup
 
 Use Python 3.11 or newer. From this directory, create and activate a virtual

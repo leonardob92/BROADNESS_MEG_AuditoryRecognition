@@ -34,8 +34,11 @@ def test_two_dimensional_output_and_projection():
     assert result.TimeSeries_BrainNetworks.shape == (31, 6)
     np.testing.assert_allclose(
         result.TimeSeries_BrainNetworks,
-        data.T @ result.ActivationPatterns_BrainNetworks,
+        (data.T - result.PCA_Mean) @ result.ActivationPatterns_BrainNetworks,
     )
+    np.testing.assert_allclose(result.PCA_Mean, data.mean(axis=1))
+    np.testing.assert_array_equal(result.SelectedComponents, np.arange(1, 7))
+    assert result.ActivationPatterns_BrainNetworks_Individual.size == 0
     assert result.Significant_BrainNetworks == "MCS has not been run"
     assert result.VariancePermutations is None
 
@@ -50,7 +53,8 @@ def test_three_dimensional_conditions_are_preserved():
     for condition in range(3):
         np.testing.assert_allclose(
             result.TimeSeries_BrainNetworks[:, :, condition],
-            data[:, :, condition].T @ result.ActivationPatterns_BrainNetworks,
+            (data[:, :, condition].T - result.PCA_Mean)
+            @ result.ActivationPatterns_BrainNetworks,
         )
 
 
@@ -64,7 +68,9 @@ def test_four_dimensional_participants_use_common_patterns():
     )
 
     assert result.TimeSeries_BrainNetworks.shape == (31, 6, 3, 4)
+    assert result.ActivationPatterns_BrainNetworks_Individual.shape == (6, 6, 3, 4)
     assert result.OriginalData.shape == data.shape
+    np.testing.assert_allclose(result.PCA_Mean, data.mean(axis=(1, 2, 3)))
     np.testing.assert_allclose(
         result.ActivationPatterns_BrainNetworks,
         direct_group_result.ActivationPatterns_BrainNetworks,
@@ -73,9 +79,44 @@ def test_four_dimensional_participants_use_common_patterns():
         for condition in range(3):
             np.testing.assert_allclose(
                 result.TimeSeries_BrainNetworks[:, :, condition, participant],
-                data[:, :, condition, participant].T
+                (data[:, :, condition, participant].T - result.PCA_Mean)
                 @ result.ActivationPatterns_BrainNetworks,
             )
+            scores = result.TimeSeries_BrainNetworks[:, :, condition, participant]
+            expected_map = (
+                np.linalg.pinv(scores, rcond=max(scores.shape) * np.finfo(float).eps)
+                @ (data[:, :, condition, participant].T - result.PCA_Mean)
+            ).T
+            np.testing.assert_allclose(
+                result.ActivationPatterns_BrainNetworks_Individual[
+                    :, :, condition, participant
+                ],
+                expected_map,
+            )
+
+
+def test_component_selection_is_independent_of_monte_carlo():
+    data, time = _synthetic_data()
+    result = BROADNESS_NetworkEstimation(
+        data, time, components_num=2, permutations_num=2, random_state=7
+    )
+    assert result.ActivationPatterns_BrainNetworks.shape == (6, 2)
+    assert result.TimeSeries_BrainNetworks.shape == (31, 2, 3, 4)
+    assert result.ActivationPatterns_BrainNetworks_Individual.shape == (6, 2, 3, 4)
+    np.testing.assert_array_equal(result.SelectedComponents, [1, 2])
+    assert result.Variance_BrainNetworks.shape == (6,)
+
+    capped = BROADNESS_NetworkEstimation(data, time, components_num=100)
+    assert capped.ActivationPatterns_BrainNetworks.shape == (6, 6)
+
+
+def test_default_component_limit_is_thirty():
+    generator = np.random.default_rng(4)
+    data = generator.normal(size=(35, 50))
+    result = BROADNESS_NetworkEstimation(data, np.arange(50))
+    assert result.ActivationPatterns_BrainNetworks.shape == (35, 30)
+    assert result.Variance_BrainNetworks.shape == (35,)
+    np.testing.assert_array_equal(result.SelectedComponents, np.arange(1, 31))
 
 
 def test_time_window_uses_nearest_samples_and_includes_endpoints():
@@ -143,16 +184,8 @@ def test_monte_carlo_is_reproducible_and_one_based(randomization):
     )
     assert isinstance(first.Significant_BrainNetworks, np.ndarray)
     assert np.all(first.Significant_BrainNetworks >= 1)
-    if first.Significant_BrainNetworks.size:
-        np.testing.assert_array_equal(
-            first.Significant_BrainNetworks,
-            np.arange(1, first.Significant_BrainNetworks.size + 1),
-        )
-        assert first.TimeSeries_BrainNetworks.shape[1] == (
-            first.Significant_BrainNetworks.size
-        )
-    else:
-        assert first.TimeSeries_BrainNetworks.size == 0
+    assert first.TimeSeries_BrainNetworks.shape[1] == first.SelectedComponents.size
+    np.testing.assert_array_equal(first.SelectedComponents, np.arange(1, 7))
 
 
 @pytest.mark.parametrize("randomization", [1, 2, 3])
@@ -201,6 +234,8 @@ def test_negative_permutations_warn_and_skip_monte_carlo():
         ({"randomization": 4}, ValueError, "randomization"),
         ({"randomization": 1.5}, TypeError, "randomization"),
         ({"permutations_num": 1.5}, TypeError, "permutations_num"),
+        ({"components_num": 0}, ValueError, "components_num"),
+        ({"components_num": 1.5}, TypeError, "components_num"),
         ({"random_state": 2.5}, TypeError, "random_state"),
         ({"random_state": -1}, ValueError, "random_state"),
         ({"time_window": [0.5, 0.1]}, ValueError, "time_window"),
