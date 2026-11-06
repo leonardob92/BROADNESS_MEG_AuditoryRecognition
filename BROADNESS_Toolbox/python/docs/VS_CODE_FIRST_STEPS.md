@@ -17,9 +17,21 @@ run the four cells in section 4. You do not need to install Python again.
    use that existing folder instead.
 3. In VS Code, choose **File → Open Folder** and open
    `BROADNESS_MEG_AuditoryRecognition/BROADNESS_Toolbox/python`.
-4. When VS Code offers recommended extensions, install **Python** and
-   **Jupyter**, both published by Microsoft. You can also find them in the
-   Extensions view on the left.
+4. Check the two required extensions yourself:
+   - Press **Cmd+Shift+X** on a Mac or **Ctrl+Shift+X** on Windows/Linux. This
+     opens **Extensions** (the four-squares icon on the left).
+   - Search for **`ms-python.python`**. Open the result named **Python** by
+     **Microsoft**. If you see **Install**, click it. If you see **Enable** or
+     **Enable (Workspace)**, click that. If you see **Disable** or **Uninstall**,
+     it is already installed and enabled.
+   - Clear the search box and search for **`ms-toolsai.jupyter`**. Open
+     **Jupyter** by **Microsoft** and make the same check.
+   - If VS Code asks you to **Reload Window** or **Restart Extensions**, do so.
+     Then reopen this folder if needed. Both extension pages should now offer
+     **Disable** or **Uninstall**, rather than **Install** or **Enable**.
+
+This repository recommends those extensions, but a recommendation does not
+install them automatically. The check above confirms their actual state.
 
 VS Code is the editor. Python is the program that runs the analysis, and
 `.venv` will be a private Python environment for this toolbox.
