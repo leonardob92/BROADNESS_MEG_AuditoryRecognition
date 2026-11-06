@@ -25,6 +25,24 @@ spatial patterns when participant data are provided. ICA uses the JADE method
 from MATLAB's `jadeR.m`; it can choose a component count automatically from
 `total_varexp` when `icacomps` is omitted.
 
+The temporal statistics functions accept the network time series returned by
+PCA. For example:
+
+```python
+from broadness import BROADNESS_TemporalClusterCorrection
+
+significant, cluster_p, alpha, details = BROADNESS_TemporalClusterCorrection(
+    pca.TimeSeries_BrainNetworks[:, :2, :, :],
+    condition_pairs=[[1, 2]],
+    time=pca.Time,
+)
+```
+
+`cluster_p` contains **cluster-level** corrected p-values repeated over each
+cluster, with NaN elsewhere; it is not a map of pointwise adjusted p-values.
+The group procedures use an approximate wild bootstrap. Their default is 5,000
+resamples, so use small values only for exploratory runs and software checks.
+
 ## Environment setup
 
 Use Python 3.11 or newer. From this directory, create and activate a virtual

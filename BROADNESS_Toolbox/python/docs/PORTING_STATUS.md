@@ -4,32 +4,32 @@ Reference MATLAB version: `main` at `7a8d54b` (2 November 2026), now copied to
 the sibling `matlab` directory. Compare against that version before implementing
 or updating each Python function.
 
-The Python package currently has four of the 20 functions in
+The Python package currently has 12 of the 20 functions in
 `matlab/BROADNESS_Functions`, plus `BROADNESS_Startup`. “Implemented” means
-source and Python tests are present; a direct MATLAB numerical comparison is
-still pending for PCA and ICA.
+source and Python tests are present. Direct MATLAB numerical comparisons are
+still pending; MATLAB's command-line launch did not complete in this workspace.
 
 | MATLAB function | Python status | Main work remaining |
 | --- | --- | --- |
 | `BROADNESS_AlternativeNetworkEstimation_ICA` | Implemented | JADE decomposition and MATLAB output fields; direct MATLAB numerical comparison pending. |
-| `BROADNESS_BehaviourCorrelation` | Missing | Pearson/Spearman correlations and FDR. |
+| `BROADNESS_BehaviourCorrelation` | Implemented | Pearson/Spearman correlations, pairwise valid participants, and FDR. |
 | `BROADNESS_EffectiveDimensionality` | Existing | Check against the current MATLAB behavior. |
-| `BROADNESS_FDRCorrection` | Missing | Benjamini–Hochberg correction and NaN handling. |
+| `BROADNESS_FDRCorrection` | Implemented | Benjamini–Hochberg correction and NaN handling. |
 | `BROADNESS_FigureSettings` | Missing | Common plot and export options. |
 | `BROADNESS_FinalizeFigure` | Missing | Common figure export. |
 | `BROADNESS_NetworkEstimation` | Updated | `components_num`, common PCA centering, retained components, and participant spatial patterns have Python tests; direct MATLAB comparison pending. |
 | `BROADNESS_PhaseSpaceStatistics` | Missing | Phase-space tests, metrics, and corrections. |
 | `BROADNESS_PhaseSpace_RQA` | Missing | Recurrence metrics and plots. |
 | `BROADNESS_Plot_ActivationTimeseries` | Missing | Statistical time-series plots. |
-| `BROADNESS_RepeatedMeasuresANOVA` | Missing | Repeated-measures condition test. |
-| `BROADNESS_SignificantSamplesToWindows` | Missing | Convert masks into time windows. |
+| `BROADNESS_RepeatedMeasuresANOVA` | Implemented | Time-resolved condition test, Greenhouse–Geisser correction, and family-wide FDR. |
+| `BROADNESS_SignificantSamplesToWindows` | Implemented | Convert masks into time windows. |
 | `BROADNESS_SpatialActivationClustering` | Missing | Clustering, results, plots, and optional NIfTI export. |
 | `BROADNESS_SpatialPatternGroupStatistics` | Missing | Independent-group spatial inference. |
 | `BROADNESS_SpatialPatternStatistics` | Missing | Within-participant spatial inference. |
-| `BROADNESS_TemporalClusterCorrection` | Missing | Paired temporal cluster permutations. |
-| `BROADNESS_TemporalClusterCorrection_ANOVA` | Missing | Repeated-measures temporal cluster permutations. |
-| `BROADNESS_TemporalClusterCorrection_GroupANOVA` | Missing | Group Welch ANOVA with wild bootstrap. |
-| `BROADNESS_TemporalClusterCorrection_Groups` | Missing | Pairwise group Welch tests with wild bootstrap. |
+| `BROADNESS_TemporalClusterCorrection` | Implemented | Paired whole-series sign flips; cluster-level inference per network and condition pair. |
+| `BROADNESS_TemporalClusterCorrection_ANOVA` | Implemented | Complete condition-label permutations within participants; per-network nulls. |
+| `BROADNESS_TemporalClusterCorrection_GroupANOVA` | Implemented | Welch ANOVA with group-centered wild bootstrap; approximate cluster inference. |
+| `BROADNESS_TemporalClusterCorrection_Groups` | Implemented | Pairwise Welch tests with group-centered wild bootstrap; approximate cluster inference. |
 | `BROADNESS_Visualizer` | Existing, needs update | New figure mode, layout, export options, and output structure. |
 
 The three requested examples are all pending: `BROADNESS_Example`,
