@@ -32,13 +32,13 @@ still pending; MATLAB's command-line launch did not complete in this workspace.
 | `BROADNESS_TemporalClusterCorrection_Groups` | Implemented | Pairwise Welch tests with group-centered wild bootstrap; approximate cluster inference. |
 | `BROADNESS_Visualizer` | Updated | MATLAB-style figure mode, layout, export options, and file listing; NIfTI export now uses `OutputPath/BROADNESS_nifti`. |
 
-The three requested examples are all pending: `BROADNESS_Example`,
-`BROADNESS_Statistics_WithinParticipants_Example`, and
-`BROADNESS_Statistics_MultipleGroupsParticipants_Example`.
-The small, self-contained VS Code lesson and first-use guide are available at
-[`examples/00_vscode_quickstart.py`](../examples/00_vscode_quickstart.py) and
-[`docs/VS_CODE_FIRST_STEPS.md`](VS_CODE_FIRST_STEPS.md). They are the first part
-of step 6; the three full examples and final parity checks are the next part.
+The three MATLAB-style real-data Python examples are now available in
+[`examples/`](../examples/) with individual guides in
+[`docs/tutorials/`](tutorials/). The general and two statistics scripts mirror
+the main MATLAB section order, but tutorial mode samples sources and time to
+limit first-run cost. The multiple-group tutorial uses arbitrary demonstration
+labels until real group metadata is supplied. Direct MATLAB numerical parity
+checks and full-data scientific validation remain pending.
 
 ## External functionality
 

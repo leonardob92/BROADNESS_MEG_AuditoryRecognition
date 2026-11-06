@@ -34,6 +34,7 @@ vscode = [
   "nibabel>=5.2",
   "openpyxl>=3.1",
   "ipykernel>=6.29",
+  "statsmodels>=0.15,<0.16",
 ]
 test = [
   "pytest>=8",

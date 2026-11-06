@@ -170,10 +170,12 @@ the ZIP itself, or an extra nested folder, where the examples expect the
 the chosen comparison; a few files are useful for learning the loading and
 PCA workflow, not for reproducing the paper's inference.
 
-The three full Python examples will follow the corresponding MATLAB examples
-in the next step. Their default data location will be the `Data/` folder shown
-above. If you store the files elsewhere, change the `data_path` setting near
-the top of each example to your folder, for example
+The three Python examples follow the corresponding MATLAB examples. Start with
+the [general tutorial](tutorials/01_GENERAL.md), then the
+[within-participant tutorial](tutorials/02_WITHIN_PARTICIPANTS.md) or
+[multiple-group tutorial](tutorials/03_MULTIPLE_GROUPS.md). Their default data
+location is the `Data/` folder shown above. If you store the files elsewhere,
+change the `data_path` setting in section 0 of each script to your folder, for example
 `data_path = Path("/absolute/path/to/my/data")` after `from pathlib import Path`.
 On Windows, use a raw string such as `Path(r"C:\my_data\BROADNESS")`.
 
@@ -184,8 +186,7 @@ files on your computer: the repository ignores `Data/`, so they will not
 appear in GitHub Desktop commits.
 
 You can run these `.py` sections in VS Code without creating a Jupyter notebook.
-A notebook version can be added later for teaching. The script remains an
-ordinary Python file that can also be run from top to bottom.
+Each script remains an ordinary Python file that can also run from top to bottom.
 
 VS Code references: [Python setup](https://code.visualstudio.com/docs/python/python-tutorial),
 [Interactive Window and Variables explorer](https://code.visualstudio.com/docs/python/jupyter-support-py),
