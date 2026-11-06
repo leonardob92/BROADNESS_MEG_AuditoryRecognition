@@ -6,14 +6,14 @@ from broadness import BROADNESSPaths, BROADNESS_Startup
 
 
 def _make_minimal_toolbox(root: Path) -> Path:
-    toolbox = root / "BROADNESS_Toolbox"
+    toolbox = root / "BROADNESS_Toolbox" / "matlab"
     (toolbox / "BROADNESS_Functions").mkdir(parents=True)
     (toolbox / "BROADNESS_External" / "NIfTI_20140122").mkdir(parents=True)
     return toolbox
 
 
 def test_startup_locates_the_complete_toolbox(capsys):
-    toolbox = Path(__file__).resolve().parents[2]
+    toolbox = Path(__file__).resolve().parents[2] / "matlab"
 
     paths = BROADNESS_Startup(toolbox)
 
@@ -35,8 +35,8 @@ def test_startup_locates_the_complete_toolbox(capsys):
 
 
 def test_startup_accepts_the_repository_root():
-    toolbox = Path(__file__).resolve().parents[2]
-    repository = toolbox.parent
+    toolbox = Path(__file__).resolve().parents[2] / "matlab"
+    repository = toolbox.parent.parent
 
     paths = BROADNESS_Startup(repository)
 
@@ -44,8 +44,8 @@ def test_startup_accepts_the_repository_root():
 
 
 def test_startup_can_discover_the_toolbox(monkeypatch):
-    toolbox = Path(__file__).resolve().parents[2]
-    monkeypatch.chdir(toolbox)
+    toolbox = Path(__file__).resolve().parents[2] / "matlab"
+    monkeypatch.chdir(toolbox.parent)
 
     paths = BROADNESS_Startup()
 
@@ -63,7 +63,7 @@ def test_startup_rejects_an_invalid_path_type():
 
 
 def test_startup_requires_the_nifti_tools_directory(tmp_path):
-    toolbox = tmp_path / "BROADNESS_Toolbox"
+    toolbox = tmp_path / "BROADNESS_Toolbox" / "matlab"
     (toolbox / "BROADNESS_Functions").mkdir(parents=True)
     (toolbox / "BROADNESS_External").mkdir()
 

@@ -803,9 +803,8 @@ def _mni_coordinates(Options: Any, number_sources: int) -> FloatArray:
 
 
 def _default_template_path() -> Path:
-    """Locate the 8-mm template bundled with the MATLAB toolbox."""
-    toolbox_root = Path(__file__).resolve().parents[3]
-    return toolbox_root / "BROADNESS_External" / "MNI152_8mm_brain_diy.nii.gz"
+    """Locate the 8-mm template bundled with the Python package."""
+    return Path(__file__).resolve().parent / "assets" / "MNI152_8mm_brain_diy.nii.gz"
 
 
 def _nifti_and_table_output(

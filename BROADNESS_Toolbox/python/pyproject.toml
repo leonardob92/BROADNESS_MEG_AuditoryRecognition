@@ -47,7 +47,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-broadness = ["assets/*.npz"]
+broadness = ["assets/*.npz", "assets/*.mat", "assets/*.nii.gz"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"

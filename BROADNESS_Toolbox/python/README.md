@@ -1,7 +1,7 @@
 # BROADNESS for Python
 
 This directory contains the modular Python implementation of the BROADNESS
-toolbox. The MATLAB implementation remains unchanged in the parent directory.
+toolbox. The MATLAB implementation is in the sibling `matlab` directory.
 
 Each public MATLAB function will have one corresponding Python module and
 function. There will be no all-in-one pipeline: users will call only the
@@ -9,7 +9,19 @@ individual BROADNESS functions required for their analysis.
 
 ## Environment setup
 
-From this directory, create and activate the dedicated environment:
+Use Python 3.11 or newer. From this directory, create and activate a virtual
+environment, then install the package:
+
+```text
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+On Windows, activate with `.venv\Scripts\activate` instead. For figures and
+NIfTI/Excel export, install `python -m pip install -e ".[visualize]"`.
+
+Conda is also supported:
 
 ```text
 conda env create --file environment.yml
@@ -19,8 +31,12 @@ conda activate broadness
 Run the tests with:
 
 ```text
-pytest
+python -m pip install -e ".[test]"
+python -m pytest
 ```
+
+See [porting status](docs/PORTING_STATUS.md) for the current coverage of the
+newer MATLAB toolbox. The package is still an incomplete port.
 
 ## Indexing convention
 
@@ -39,9 +55,12 @@ resolution of the estimated networks.
 
 ## Data policy
 
-Participant data, MATLAB data files, and generated analysis outputs must remain
-local and must never be committed to the repository. The package contains only
-one small anatomical visualization asset: a 92-KB surface mesh derived from the
-1-mm MNI152 brain template. It contains surface geometry rather than participant
-or experimental data and allows the 3D visualizer to load the anatomical shell
-without distributing or repeatedly processing the full template volume.
+Participant data and generated analysis outputs must remain local and must
+never be committed to the repository. The package contains compact anatomical
+reference assets: a 92-KB surface mesh derived from the 1-mm MNI152 brain
+template, plus the small 8-mm templates and coordinate files used for spatial
+visualization. None contains participant or experimental data.
+
+The existing `BROADNESS_Startup` helper can locate MATLAB resources when
+working from this repository. Python functions can be imported after package
+installation without calling it.

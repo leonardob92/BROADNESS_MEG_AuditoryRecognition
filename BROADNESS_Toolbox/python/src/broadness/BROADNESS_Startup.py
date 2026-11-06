@@ -45,17 +45,18 @@ class BROADNESSPaths:
 
 
 def _toolbox_candidate(path: Path) -> Path | None:
-    """Return the toolbox root represented by ``path``, when present."""
-    if (path / "BROADNESS_Functions").is_dir() and (
-        path / "BROADNESS_External"
-    ).is_dir():
-        return path
-
-    nested_toolbox = path / "BROADNESS_Toolbox"
-    if (nested_toolbox / "BROADNESS_Functions").is_dir() and (
-        nested_toolbox / "BROADNESS_External"
-    ).is_dir():
-        return nested_toolbox
+    """Return the MATLAB toolbox represented by ``path``, when present."""
+    candidates = (
+        path,
+        path / "matlab",
+        path / "BROADNESS_Toolbox" / "matlab",
+        path / "BROADNESS_Toolbox",  # Older repository layout.
+    )
+    for candidate in candidates:
+        if (candidate / "BROADNESS_Functions").is_dir() and (
+            candidate / "BROADNESS_External"
+        ).is_dir():
+            return candidate
 
     return None
 
@@ -76,7 +77,8 @@ def _resolve_toolbox_root(path_home: str | Path | None) -> Path:
         if root is None:
             raise FileNotFoundError(
                 "The selected directory does not contain the expected "
-                "BROADNESS_Functions and BROADNESS_External folders: "
+                "BROADNESS_Functions and BROADNESS_External folders "
+                "inside matlab: "
                 f"{requested_path}"
             )
         return root
@@ -88,8 +90,9 @@ def _resolve_toolbox_root(path_home: str | Path | None) -> Path:
             return root.resolve()
 
     raise FileNotFoundError(
-        "Could not locate the BROADNESS toolbox. Pass the BROADNESS_Toolbox "
-        "directory to BROADNESS_Startup(path_home)."
+        "Could not locate the MATLAB BROADNESS toolbox. Pass its matlab "
+        "directory, BROADNESS_Toolbox directory, or repository root to "
+        "BROADNESS_Startup(path_home)."
     )
 
 
@@ -113,9 +116,9 @@ def BROADNESS_Startup(path_home: str | Path | None = None) -> BROADNESSPaths:
     Parameters
     ----------
     path_home
-        Path to ``BROADNESS_Toolbox``. The repository root containing that
-        folder is also accepted. When omitted, the function searches the
-        current directory and the installed package's parent directories.
+        Path to ``BROADNESS_Toolbox/matlab``. The containing toolbox or
+        repository root is also accepted. When omitted, the function searches
+        the current directory and the installed package's parent directories.
 
     Returns
     -------

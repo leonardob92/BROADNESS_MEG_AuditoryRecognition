@@ -20,9 +20,12 @@ from broadness import (
 )
 
 
-TOOLBOX_ROOT = Path(__file__).resolve().parents[2]
 COORDINATE_FILE = (
-    TOOLBOX_ROOT / "BROADNESS_External" / "MNI152_8mm_coord_dyi.mat"
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "broadness"
+    / "assets"
+    / "MNI152_8mm_coord_dyi.mat"
 )
 
 

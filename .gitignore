@@ -3,9 +3,26 @@
 *.mat
 
 # BROADNESS-generated outputs
+/BROADNESS_Toolbox/Output/
+/BROADNESS_Toolbox/matlab/Output/
+/BROADNESS_Toolbox/python/Output/
 BROADNESS_Output/
 *.nii
 *.nii.gz
+
+# Anatomical assets supplied with the MATLAB toolbox
+!/BROADNESS_Toolbox/matlab/BROADNESS_External/MNI152_8mm_coord_dyi.mat
+!/BROADNESS_Toolbox/matlab/BROADNESS_External/cerebellum_coords.mat
+!/BROADNESS_Toolbox/matlab/BROADNESS_External/MNI152_8mm_brain_diy.nii.gz
+!/BROADNESS_Toolbox/matlab/BROADNESS_External/MNI152_T1_8mm_Template.nii.gz
+!/BROADNESS_Toolbox/python/src/broadness/assets/MNI152_8mm_coord_dyi.mat
+!/BROADNESS_Toolbox/python/src/broadness/assets/cerebellum_coords.mat
+!/BROADNESS_Toolbox/python/src/broadness/assets/MNI152_8mm_brain_diy.nii.gz
+!/BROADNESS_Toolbox/python/src/broadness/assets/MNI152_T1_8mm_Template.nii.gz
+
+# Local MATLAB drafts excluded from the published toolbox
+/BROADNESS_Toolbox/matlab/TEMP_BROADNESS_PublicationSurfaceRenderer.m
+/BROADNESS_Toolbox/matlab/TEMP_BROADNESS_Statistics_RepeatedSessions_Example.m
 
 # macOS metadata
 .DS_Store

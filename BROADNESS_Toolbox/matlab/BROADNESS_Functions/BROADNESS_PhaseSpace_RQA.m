@@ -1,4 +1,4 @@
-function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
+function [RQA_BROADNESS, FIGURES] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %%
 % ========================================================================
 %  BROADBAND BRAIN NETWORK ESTIMATION VIA SOURCE SEPARATION (BROADNESS) TOOLBOX
@@ -51,11 +51,24 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %      - 'principalcomps'               : Vector of PC indices to use in phase space (default: 1:10)
 %      - 'timeinterval'                 : [start_time end_time] in seconds for analysis (default: full range)
 %      - 'threshold'                    : Fraction of max distance to define recurrences (default: 0.1)
+%      - 'normalization'                : Scaling applied to the selected phase-space dimensions:
+%                                         'none' (default) preserves the original PCA/ICA scores;
+%                                         'pooled_zscore' uses one mean and standard deviation per
+%                                         selected component, pooled across the analysed time-points,
+%                                         conditions, and participants
 %      - 'theiler_window'               : Theiler window in samples. Use 0 to exclude only the main diagonal,
 %                                         or a positive integer to exclude a wider diagonal band.
 %                                         Default: [] (disabled; main diagonal retained)
 %      - 'video'                        : 'on' or 'off' to show animated phase space plot (default: 'off')
 %      - 'figure'                       : 'on' or 'off' to show the figures (default: 'off')
+%      - 'figuremode'                   : 'off', 'show', 'save', or 'both'. If omitted,
+%                                         the legacy 'figure' option is used (default: 'off')
+%      - 'figurelayout'                 : 'individual', 'summary', or 'both' (default: 'individual')
+%      - 'OutputPath'                   : Base output folder required when figures are saved
+%      - 'figureformats'                : 'png', 'pdf', 'fig', or a cell array (default: {'png'})
+%      - 'figureprefix'                 : Optional prefix for saved figure filenames
+%      - 'outpath'                      : Deprecated alias for 'OutputPath', retained for
+%                                         compatibility with previous BROADNESS scripts
 %
 % ------------------------------------------------------------------------
 %  OUTPUT:
@@ -65,9 +78,11 @@ function [RQA_BROADNESS] = BROADNESS_PhaseSpace_RQA(BROADNESS, varargin)
 %      - .PhaseSpace.PCs                       : Brain-network components used as dimensions
 %      - .PhaseSpace.ParticipantCoordinates    : Cell array of participant trajectories
 %      - .PhaseSpace.MeanCoordinates           : Cell array of participant-averaged trajectories
+%      - .PhaseSpace.Normalization              : Applied method and common center/scale parameters
 %      - .RecurrencePlots.DistMat               : Cell array of distance matrices
 %      - .RecurrencePlots.RecurPlot             : Cell array of recurrence plots (i.e., thresholded distance matrices)
 %      - .RQA_metrics                           : Table of 8 RQA measures
+%  - FIGURES                                    : Visible figure handles and saved figure paths
 %
 %      Please, note that this output will be generated for each experimental condition and participant,
 %      if the data was originally provided in such format. 
@@ -108,16 +123,40 @@ disp('Checking inputs')
 
 % Defaults
 opts = struct('principalcomps', 1:2, 'timeinterval', [], 'threshold', 0.1, ...
-    'theiler_window', [], 'video', 'off','figure','off');
+    'normalization', 'none', 'theiler_window', [], 'video', 'off', 'figure', 'off', ...
+    'figuremode', [], 'figurelayout', 'individual', 'outputpath', [], ...
+    'outpath', [], ...
+    'figureformats', {{'png'}}, 'figureprefix', '');
 opts = parse_name_value_pairs(opts, varargin{:});
 
 % Assign to readable internal names
 PCs          = opts.principalcomps;
 time_seconds = opts.timeinterval;
 eps          = opts.threshold;
+normalization = lower(char(string(opts.normalization)));
 theiler_window = opts.theiler_window;
 video        = opts.video;
 figurel      = opts.figure;
+
+if isempty(opts.figuremode)
+    if strcmpi(figurel, 'on')
+        opts.figuremode = 'show';
+    else
+        opts.figuremode = 'off';
+    end
+end
+outputPath = opts.outputpath;
+if isempty(outputPath)
+    outputPath = opts.outpath;
+elseif ~isempty(opts.outpath) && ...
+        ~strcmp(char(string(opts.outpath)), char(string(outputPath)))
+    warning(['The deprecated ''outpath'' value is ignored when ' ...
+        '''OutputPath'' is provided.']);
+end
+figureSettings = BROADNESS_FigureSettings(opts.figuremode, opts.figurelayout, ...
+    outputPath, opts.figureformats, opts.figureprefix, 'PhaseSpace_RQA');
+figureHandles = gobjects(0);
+figureFiles = {};
 
 % --- Required fields FIRST (so 'time' is defined before we use it) ---
 if isfield(BROADNESS, 'TimeSeries_BrainNetworks')
@@ -140,6 +179,9 @@ if ~(isnumeric(PCs) && isvector(PCs))
 end
 if ~isnumeric(eps) || ~isscalar(eps) || ~isfinite(eps)
     error('"threshold" must be a finite numeric scalar.');
+end
+if ~ismember(normalization, {'none','pooled_zscore'})
+    error('"normalization" must be ''none'' or ''pooled_zscore''.');
 end
 if ~isempty(theiler_window) && (~isnumeric(theiler_window) || ~isscalar(theiler_window) || ...
         ~isfinite(theiler_window) || theiler_window < 0 || fix(theiler_window) ~= theiler_window)
@@ -202,6 +244,35 @@ nT   = size(TimeSeries,1);
 nPC  = size(TimeSeries,2);
 nCond = size(TimeSeries,3);
 nPart = size(TimeSeries,4);
+
+% Optionally place all selected dimensions on a common standardized scale.
+% Crucially, the same center and scale are used for every condition and
+% participant, so between-condition and between-group differences are not
+% removed by condition-specific or participant-specific normalization.
+normalizationCenter = zeros(1,length(PCs));
+normalizationScale = ones(1,length(PCs));
+if strcmp(normalization, 'pooled_zscore')
+    for pcColumn = 1:length(PCs)
+        pooledValues = TimeSeries(reduced_time_idx, PCs(pcColumn), :, :);
+        pooledValues = pooledValues(:);
+        if any(~isfinite(pooledValues))
+            error(['Pooled z-score normalization requires finite values in ' ...
+                'all selected time series.']);
+        end
+        normalizationCenter(pcColumn) = mean(pooledValues);
+        normalizationScale(pcColumn) = std(pooledValues, 0);
+        if ~isfinite(normalizationScale(pcColumn)) || ...
+                normalizationScale(pcColumn) <= builtin('eps', ...
+                max(1,max(abs(pooledValues))))
+            error(['Pooled z-score normalization cannot be applied because ' ...
+                'brain network ' num2str(PCs(pcColumn)) ...
+                ' has zero or near-zero variance.']);
+        end
+        TimeSeries(:,PCs(pcColumn),:,:) = ...
+            (TimeSeries(:,PCs(pcColumn),:,:) - normalizationCenter(pcColumn)) ...
+            ./ normalizationScale(pcColumn);
+    end
+end
 
 % 1) Per-participant phase spaces (so nothing is lost if you need them later)
 phase_space_participants = cell(nCond, nPart);
@@ -340,122 +411,48 @@ end
     
 %% ------------------------- Recurrence plots -----------------------------
 
-if strcmp(figurel, 'on')
-    % ------------------ Phase-space scatter (static) ------------------
-    % Plot the averaged phase-space scatter plots (2D or 3D) so that
-    % figure='on' produces the phase-space visuals even if video='off'.
+if ~strcmp(figureSettings.Mode, 'off')
     for cond = 1:numel(phase_space)
-        PS = phase_space{cond};
-        nTps = size(PS,1);
-        cmap = jet(nTps);
-        scatsize = 36;
+        conditionName = ['Condition_' num2str(cond,'%02d')];
 
-        if size(PS,2) == 2
-            figure;
-            hold on;
-            set(gcf,'Color','w');
-            grid minor; box on;
-            xlabel('Brain network 1'); ylabel('Brain network 2');
-            title(['Phase space (static) - Condition ' num2str(cond)]);
-            xlim([min(PS(:,1)) max(PS(:,1))]);
-            ylim([min(PS(:,2)) max(PS(:,2))]);
+        if figureSettings.MakeIndividual
+            fig = figure('Visible', figureSettings.Visible, 'Color', 'w');
+            plot_phase_space(gca, phase_space{cond}, time(reduced_time_idx), cond);
+            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+                [conditionName '_PhaseSpace'])]; %#ok<AGROW>
+            if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
 
-            % color by time
-            for ii = 1:nTps
-                scatter(PS(ii,1), PS(ii,2), scatsize, cmap(ii,:), 'filled');
-            end
-            c = colorbar;
-            colormap(jet);
-            % create tick labels using the reduced_time_idx mapping to time
-            t_ticks = round(linspace(1, nTps, min(10, nTps)));
-            c.Ticks = linspace(0,1,numel(t_ticks));
-            c.TickLabels = time(reduced_time_idx(t_ticks));
-            hold off;
-            axis square;
+            fig = figure('Visible', figureSettings.Visible, 'Color', 'w');
+            plot_recurrence_matrix(gca, DM{cond}, time(reduced_time_idx), ...
+                ['Condition ' num2str(cond) ' — Distance matrix'], false);
+            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+                [conditionName '_DistanceMatrix'])]; %#ok<AGROW>
+            if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
 
-        elseif size(PS,2) == 3
-            figure;
-            hold on;
-            set(gcf,'Color','w');
-            view(3);
-            axis vis3d;
-            grid minor; box on;
-            xlabel('Brain network 1'); ylabel('Brain network 2'); zlabel('Brain network 3');
-            title(['Phase space (static, 3D) - Condition ' num2str(cond)]);
-            xlim([min(PS(:,1)) max(PS(:,1))]);
-            ylim([min(PS(:,2)) max(PS(:,2))]);
-            zlim([min(PS(:,3)) max(PS(:,3))]);
+            fig = figure('Visible', figureSettings.Visible, 'Color', 'w');
+            plot_recurrence_matrix(gca, RP{cond}, time(reduced_time_idx), ...
+                ['Condition ' num2str(cond) ' — Recurrence plot (' num2str(eps*100) '%)'], true);
+            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+                [conditionName '_RecurrenceThresholded'])]; %#ok<AGROW>
+            if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
+        end
 
-            for ii = 1:nTps
-                scatter3(PS(ii,1), PS(ii,2), PS(ii,3), scatsize, 'MarkerFaceColor', cmap(ii,:), 'MarkerEdgeColor', cmap(ii,:));
-            end
-            c = colorbar;
-            colormap(jet);
-            t_ticks = round(linspace(1, nTps, min(10, nTps)));
-            c.Ticks = linspace(0,1,numel(t_ticks));
-            c.TickLabels = time(reduced_time_idx(t_ticks));
-            hold off;
-            axis square;
-
-        else
-            % For >3D, skip static visualization (you already warn for video)
-            warning('Static phase-space scatter is available only for 2 or 3 principal components.');
+        if figureSettings.MakeSummary
+            fig = figure('Visible', figureSettings.Visible, 'Color', 'w', ...
+                'Position', [100 100 1350 430]);
+            layout = tiledlayout(fig, 1, 3, 'TileSpacing', 'compact', 'Padding', 'compact');
+            title(layout, ['Phase-Space RQA — Condition ' num2str(cond)]);
+            plot_phase_space(nexttile(layout), phase_space{cond}, time(reduced_time_idx), cond);
+            plot_recurrence_matrix(nexttile(layout), DM{cond}, time(reduced_time_idx), ...
+                'Distance matrix', false);
+            plot_recurrence_matrix(nexttile(layout), RP{cond}, time(reduced_time_idx), ...
+                ['Recurrence plot (' num2str(eps*100) '%)'], true);
+            figureFiles = [figureFiles; BROADNESS_FinalizeFigure(fig, figureSettings, ...
+                [conditionName '_Summary'])]; %#ok<AGROW>
+            if figureSettings.Show, figureHandles(end+1) = fig; end %#ok<AGROW>
         end
     end
-
-    % ----------------------- Recurrence plots -------------------------
-    % Plotting the NO THRESHOLDED recurrence plot for each condition
-    for cond = 1:size(DM,1) % over conditions
-        figure;
-        imagesc(time(reduced_time_idx), time(reduced_time_idx), DM{cond});
-        xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
-        colorbar
-        set(gcf,'Color','w')
-        % Flip colormap: recurrence = blue, non-recurrence = yellow
-        colormap(flipud(parula));
-        title(['Condition ' num2str(cond) ' no thresholding'])
-        axis square
-    end
-
-    % Plotting the THRESHOLDED recurrence plot for each condition
-    for cond = 1:size(RP,1) % over conditions
-        figure;
-        imagesc(time(reduced_time_idx), time(reduced_time_idx), RP{cond});
-        xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
-        colorbar
-        set(gcf,'Color','w')
-        title(['Condition ' num2str(cond) ' thresholding ' num2str(eps*100) '%'])
-        axis square
-    end
 end
-
-
-
-% if strcmp(figurel, 'on')
-%     % Plotting the NO THRESHOLDED recurrence plot for each condition
-%     for cond = 1:size(DM,1) % over conditions
-%         figure;
-%         imagesc(time(reduced_time_idx), time(reduced_time_idx), DM{cond}); 
-%         xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
-%         colorbar
-%         set(gcf,'Color','w')
-%         % Flip colormap: recurrence = blue, non-recurrence = yellow
-%         colormap(flipud(parula));  
-%         title(['Condition ' num2str(cond) ' no thresholding'])
-%         axis square
-%     end
-%     
-%     % Plotting the THRESHOLDED recurrence plot for each condition
-%     for cond = 1:size(RP,1) % over conditions
-%         figure;
-%         imagesc(time(reduced_time_idx), time(reduced_time_idx), RP{cond}); 
-%         xlabel('Time (s)'); ylabel('Time (s)'); set(gca,'YDir','normal');
-%         colorbar
-%         set(gcf,'Color','w')
-%         title(['Condition ' num2str(cond) ' thresholding ' num2str(eps*100) '%'])
-%         axis square
-%     end
-% end
 
 %% --------------------- PER-PARTICIPANT RP + METRICS ---------------------
 
@@ -585,11 +582,60 @@ RQA_BROADNESS.PhaseSpace.MeanCoordinates        = phase_space;
 RQA_BROADNESS.PhaseSpace.nConditions            = nCond;
 RQA_BROADNESS.PhaseSpace.nParticipants          = nPart;
 RQA_BROADNESS.PhaseSpace.nDimensions            = length(PCs);
+RQA_BROADNESS.PhaseSpace.Normalization.Method    = normalization;
+RQA_BROADNESS.PhaseSpace.Normalization.Center    = normalizationCenter;
+RQA_BROADNESS.PhaseSpace.Normalization.Scale     = normalizationScale;
+RQA_BROADNESS.PhaseSpace.Normalization.Reference = ...
+    'Selected time-points pooled across all conditions and participants';
 
 % NEW: Per-participant recurrence plots + metrics
 RQA_BROADNESS.RecurrencePlots.DistMat   = RP_participants;        % cell(nCond,nPart)
 RQA_BROADNESS.RecurrencePlots.RecurPlot = RP_thresh_participants; % cell(nCond,nPart)
 RQA_BROADNESS.RQA_metrics               = metrics_tbl_participants;  % {nPart} of tables
+FIGURES.Handles = figureHandles;
+FIGURES.Files = figureFiles;
+RQA_BROADNESS.Figures.Files = figureFiles;
+
+function plot_phase_space(ax, phaseSpace, analysedTime, condition)
+nTimePoints = size(phaseSpace,1);
+colors = jet(nTimePoints);
+hold(ax, 'on'); grid(ax, 'minor'); box(ax, 'on');
+if size(phaseSpace,2) == 2
+    scatter(ax, phaseSpace(:,1), phaseSpace(:,2), 24, colors, 'filled');
+    xlabel(ax, 'Brain network 1'); ylabel(ax, 'Brain network 2');
+elseif size(phaseSpace,2) == 3
+    scatter3(ax, phaseSpace(:,1), phaseSpace(:,2), phaseSpace(:,3), ...
+        24, colors, 'filled');
+    xlabel(ax, 'Brain network 1'); ylabel(ax, 'Brain network 2');
+    zlabel(ax, 'Brain network 3'); view(ax, 3); axis(ax, 'vis3d');
+else
+    text(ax, 0.5, 0.5, 'Phase-space display requires 2 or 3 components', ...
+        'HorizontalAlignment', 'center'); axis(ax, 'off');
+    return
+end
+colormap(ax, jet);
+c = colorbar(ax);
+timeTicks = round(linspace(1, nTimePoints, min(6,nTimePoints)));
+c.Ticks = linspace(0,1,numel(timeTicks));
+c.TickLabels = round(analysedTime(timeTicks),3);
+c.Label.String = 'Time (s)';
+title(ax, ['Phase space — Condition ' num2str(condition)]);
+axis(ax, 'square');
+end
+
+function plot_recurrence_matrix(ax, matrixToPlot, analysedTime, plotTitle, thresholded)
+imagesc(ax, analysedTime, analysedTime, matrixToPlot);
+set(ax, 'YDir', 'normal'); xlabel(ax, 'Time (s)'); ylabel(ax, 'Time (s)');
+c = colorbar(ax); axis(ax, 'square'); title(ax, plotTitle);
+if thresholded
+    colormap(ax, gray(2));
+    caxis(ax, [0 1]);
+    c.Ticks = [0 1];
+    c.TickLabels = {'0','1'};
+else
+    colormap(ax, flipud(parula));
+end
+end
 
 %% ------------------------ Helper: parse name/values ---------------------
 function opts = parse_name_value_pairs(opts, varargin)
