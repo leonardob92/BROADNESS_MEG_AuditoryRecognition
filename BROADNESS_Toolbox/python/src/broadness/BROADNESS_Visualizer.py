@@ -417,6 +417,32 @@ def _matplotlib():
     return plt
 
 
+def _enable_widget_for_spatial_plot() -> None:
+    """Use mouse-rotatable 3D figures in Jupyter when ipympl is installed."""
+    try:
+        from IPython import get_ipython
+        import matplotlib
+    except ImportError:
+        return
+    shell = get_ipython()
+    if shell is None or shell.__class__.__name__ != "ZMQInteractiveShell":
+        return
+    backend = matplotlib.get_backend().lower()
+    if "ipympl" in backend or "inline" not in backend:
+        return
+    try:
+        import ipympl  # noqa: F401 - needed by the widget backend
+    except ImportError:
+        warnings.warn(
+            "Install broadness[vscode] and restart the Jupyter kernel to rotate "
+            "the 3D spatial plot with the mouse.",
+            UserWarning,
+            stacklevel=3,
+        )
+        return
+    shell.run_line_magic("matplotlib", "widget")
+
+
 def _publication_style() -> dict[str, Any]:
     """Return a clean figure style using Helvetica Neue when available."""
     from matplotlib import font_manager
@@ -1053,6 +1079,8 @@ def BROADNESS_Visualizer(
     print("Checking visualizer inputs")
     inputs = _canonical_inputs(BROADNESS)
     which_plots = _which_plots(Options)
+    if which_plots[3] and settings.Show and show:
+        _enable_widget_for_spatial_plot()
     components = _selected_components(BROADNESS, Options, inputs)
     labels = _labels(Options, inputs.data.shape[2])
     if (

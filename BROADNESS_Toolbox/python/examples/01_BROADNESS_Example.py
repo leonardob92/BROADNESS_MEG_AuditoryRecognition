@@ -21,7 +21,7 @@ from broadness.example_data import default_data_path, load_published_example
 
 data_path = default_data_path()  # Change to Path("/your/data/folder") if needed.
 output_path = default_data_path().parent / "BROADNESS_Toolbox" / "Output"
-TUTORIAL_MODE = True
+TUTORIAL_MODE = False
 USE_PARTICIPANTS = False  # False = 51-MB averaged file; True = participant .mat files.
 MAX_PARTICIPANTS = 3       # Used only when USE_PARTICIPANTS is True.
 ALLOW_LARGE = False        # Explicit opt-in if the selected array exceeds 2 GiB.
@@ -65,12 +65,14 @@ print("Effective dimensionality:", effective_dimensionality)
 
 
 # %% 2) VISUALIZE VARIANCE AND NETWORK TIME SERIES
+spatial_coords = example.mni_coords
 visualization = BROADNESS_Visualizer(
     BROADNESS,
     {
-        "WhichPlots": [0, 1, 1, 0, 0],
+        "WhichPlots": [0, 0, 0, 0, 1],
         "ncomps": [1, 2],  # BROADNESS selections start at 1, like MATLAB.
         "ncomps_var": 2,
+        "MNI_coords": spatial_coords,
         "Labels": CONDITION_LABELS,
         "OutputPath": output_path,
         "FigureMode": FIGURE_MODE,
@@ -78,28 +80,6 @@ visualization = BROADNESS_Visualizer(
     },
 )
 print("Saved figure files:", visualization.Figures.Files)
-
-
-# %% 2b) ALTERNATIVE VISUALIZATION (OPTIONAL)
-# The 3D spatial view and NIfTI export are more involved. Run deliberately.
-RUN_SPATIAL_VISUALIZATION = False
-if RUN_SPATIAL_VISUALIZATION:
-    spatial_visualization = BROADNESS_Visualizer(
-        BROADNESS,
-        {
-            "WhichPlots": [0, 0, 0, 1, 0],
-            "MNI_coords": mni_coords,
-            "ncomps": [1, 2],
-            "Labels": CONDITION_LABELS,
-            "OutputPath": output_path,
-            "FigureMode": FIGURE_MODE,
-            "FigureLayout": "individual",
-        },
-    )
-    print("Spatial figures:", spatial_visualization.Figures.Files)
-else:
-    print("Spatial visualization skipped.")
-
 
 # %% 3) PHASE SPACE AND RECURRENCE QUANTIFICATION ANALYSIS
 # Recurrence matrices grow quadratically with the number of time samples.
@@ -133,7 +113,7 @@ if RUN_SPATIAL_CLUSTERING:
     SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(
         BROADNESS, principalcomps=(1, 2), nclusters=(2, 3, 4),
         evalclusters=3, mni_coords=mni_coords,
-        figuremode="off", OutputPath=None if TUTORIAL_MODE else output_path,
+        figuremode="show", OutputPath=None if TUTORIAL_MODE else output_path,
     )
     print("Spatial clustering complete. Inspect SPATIAL_CLUSTERING_BROADNESS in Variables.")
 else:

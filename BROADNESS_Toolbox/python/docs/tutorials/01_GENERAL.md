@@ -23,7 +23,7 @@ the [published Zenodo dataset](https://zenodo.org/records/17048137).
 | 1b | Optional comparison of PCA settings. Change `RUN_ALTERNATIVE_PCA` to `True` only when wanted. | `BROADNESS_ALTERNATIVE` |
 | 1-extension | Calculate effective dimensionality from the PCA variance spectrum. | `effective_dimensionality` |
 | 2 | Display variance and network time-series figures. | `visualization` and its `Figures` |
-| 2b | Optional 3D spatial view. It creates a more involved figure. | `spatial_visualization` |
+| 2b | Click **Run Cell** to plot the 3D map. This cell uses the full averaged file, so the map has all 3,559 source locations. | `BROADNESS_SPATIAL`, `spatial_visualization` |
 | 3 | Calculate phase trajectories and RQA measures. | `RQA_BROADNESS.RQA_metrics[0]` |
 | 3b | Calculate descriptive phase-space measures. Averaged data do not support participant-level inference. | `PHASE_STATS.Metrics.Speed` |
 | 4 | Cluster source activation patterns. | `SPATIAL_CLUSTERING_BROADNESS` |
@@ -32,6 +32,27 @@ the [published Zenodo dataset](https://zenodo.org/records/17048137).
 In section 0, change `FIGURE_MODE` to `"save"` to write figures under
 `BROADNESS_Toolbox/Output/`. That folder stays on your computer and is ignored
 by Git. `"off"` suppresses figures.
+
+## Rotate the 3D brain in VS Code
+
+1. Run sections 0 and 1, then click **Run Cell** for section 2b. Keep
+   `FIGURE_MODE = "show"` (or `"both"`). The visualizer enables the interactive
+   widget automatically in the VS Code Interactive Window.
+2. Drag inside the resulting 3D figure to rotate it; use the mouse wheel or
+   trackpad scroll to zoom. The ordinary inline image and saved PNG are static.
+
+If the figure stays static, run `bash setup_vscode.sh` from the `python/`
+folder on macOS/Linux, or `.\setup_vscode.bat` on Windows. Then restart the
+**Interactive Window kernel** and rerun sections 0, 1, and 2b. The setup script
+installs the small `ipympl` plotting widget into this project's `.venv`.
+
+Section 2b uses the complete averaged file by default, even though sections 1
+and 2 use the small tutorial subset. It does this so the spatial pattern is
+based on the same spatial and temporal resolution as the MATLAB example. The
+full averaged array is about 55 MB in memory; it does not read participant
+files. `BROADNESS_SPATIAL` is separate from the earlier `BROADNESS` result.
+The 3D widget may rotate less smoothly than MATLAB because Matplotlib redraws
+the brain surface as you drag.
 
 ## Try a few individual participants
 
