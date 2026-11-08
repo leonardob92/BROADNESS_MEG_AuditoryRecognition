@@ -92,6 +92,8 @@ Figure modes are `off`, `show`, `save`, and `both`; layouts are `individual`,
 The `fig` option saves a Python Matplotlib pickle for local editing; it cannot
 be opened as a MATLAB `.fig` file. Open only trusted pickle files. The
 visualizer also accepts these figure options in its `Options` dictionary.
+The spatial figures use two fixed brain views in the VS Code Interactive
+Window and in saved PNG/PDF files. This avoids a large, slow 3D widget.
 
 ## Environment setup
 

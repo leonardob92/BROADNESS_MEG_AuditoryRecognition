@@ -69,7 +69,7 @@ spatial_coords = example.mni_coords
 visualization = BROADNESS_Visualizer(
     BROADNESS,
     {
-        "WhichPlots": [0, 0, 0, 0, 1],
+        "WhichPlots": [1, 0, 1, 0, 0],
         "ncomps": [1, 2],  # BROADNESS selections start at 1, like MATLAB.
         "ncomps_var": 2,
         "MNI_coords": spatial_coords,
@@ -89,7 +89,7 @@ if RUN_RQA:
         BROADNESS, principalcomps=(1, 2), threshold=0.1,
         figuremode="off", video="off",
     )
-    print("RQA measures for participant 1:")
+    print("RQA measures:")
     print(RQA_BROADNESS.RQA_metrics[0])
 else:
     print("RQA skipped.")
@@ -111,7 +111,7 @@ else:
 RUN_SPATIAL_CLUSTERING = True
 if RUN_SPATIAL_CLUSTERING:
     SPATIAL_CLUSTERING_BROADNESS = BROADNESS_SpatialActivationClustering(
-        BROADNESS, principalcomps=(1, 2), nclusters=(2, 3, 4),
+        BROADNESS, principalcomps=(1, 2), nclusters=range(2,16),
         evalclusters=3, mni_coords=mni_coords,
         figuremode="show", OutputPath=None if TUTORIAL_MODE else output_path,
     )
@@ -132,12 +132,14 @@ else:
 
 
 # %% 5b) VISUALIZE ICA RESULTS
+spatial_coords = example.mni_coords
 if RUN_ICA:
     ICA_VISUALIZATION = BROADNESS_Visualizer(
         BROADNESS_ICA,
         {
-            "WhichPlots": [0, 0, 1, 0, 0],
+            "WhichPlots": [0, 0, 0, 1, 0],
             "ncomps": [1, 2],
+            "MNI_coords": spatial_coords,
             "Labels": CONDITION_LABELS,
             "OutputPath": output_path,
             "FigureMode": FIGURE_MODE,

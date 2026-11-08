@@ -19,11 +19,10 @@ Visual Studio Code and inspect their variables in the Interactive Window.
 | [2. Conditions within participants](docs/tutorials/02_WITHIN_PARTICIPANTS.md) | [`02_BROADNESS_Statistics_WithinParticipants_Example.py`](examples/02_BROADNESS_Statistics_WithinParticipants_Example.py) | Averaged file plus at least four `SUBJ_*.mat` files |
 | [3. Independent groups](docs/tutorials/03_MULTIPLE_GROUPS.md) | [`03_BROADNESS_Statistics_MultipleGroupsParticipants_Example.py`](examples/03_BROADNESS_Statistics_MultipleGroupsParticipants_Example.py) | Averaged file plus at least six `SUBJ_*.mat` files |
 
-All three scripts start in **tutorial mode**: they sample real sources and time
-points to keep the first run manageable. These subsets and the arbitrary groups
-in tutorial 3 are for learning the software, not scientific inference. Each
-tutorial explains the settings needed for full data and the limitations of its
-statistical results.
+The general example uses the full averaged dataset. The two statistics scripts
+start in **tutorial mode**, sampling sources and time points to keep the first
+run manageable. Those subsets and the arbitrary groups in tutorial 3 are for
+learning the software, not scientific inference.
 
 ## Further information
 

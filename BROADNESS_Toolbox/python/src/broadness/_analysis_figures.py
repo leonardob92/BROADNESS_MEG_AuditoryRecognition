@@ -132,7 +132,7 @@ def _brain_surface(axis: object) -> None:
 
     vertices, faces = _mni_brain_surface()
     surface = Poly3DCollection(vertices[faces], facecolor=(0.56, 0.61, 0.66, 0.20),
-                               edgecolor=(0.42, 0.46, 0.50, 0.035), linewidth=0.08)
+                               edgecolor="none", linewidth=0)
     surface.set_rasterized(True)
     axis.add_collection3d(surface)
     center = (vertices.min(axis=0) + vertices.max(axis=0)) / 2
@@ -318,23 +318,37 @@ def clustering_figures(result: Result, coords: np.ndarray, settings: object, sca
             _cluster_embedding(ax, activations, result.idx[f"Nclusters_{k}"].to_numpy(), pcs, k)
             _finish(fig, settings, figures, f"ClusterEmbedding_K_{k:02d}")
         for cluster, frame in enumerate(result.ClusterPoints_PC, start=1):
-            fig = plt.figure(figsize=(11.5, 5), constrained_layout=True)
-            ax1 = fig.add_subplot(121)
-            ax2 = fig.add_subplot(122, projection="3d")
-            _brain_surface(ax2)
             values = frame.to_numpy()
-            for column, pc in enumerate(pcs):
-                ax1.scatter(values[:, column], np.full(len(values), column + 1), s=9, alpha=0.5, label=f"PC{pc}")
-            ax1.set_yticks(np.arange(1, len(pcs) + 1), [f"PC{pc}" for pc in pcs])
-            ax1.set_xlabel("Activation weight")
-            ax1.set_title("Activation profile")
             mask = result.idx[f"Nclusters_{result.optimalK}"].to_numpy() == cluster
             cluster_color = np.asarray(plt_color(cluster - 1, result.optimalK)[:3]) * braincolorintensity
-            ax2.scatter(coords[mask, 0], coords[mask, 1], coords[mask, 2],
-                        s=brainmarkersize, c=[cluster_color], alpha=0.8)
-            ax2.set_title(f"Brain location (n = {mask.sum()} sources)")
-            ax2.set_axis_off()
-            fig.suptitle(f"Cluster {cluster} — {result.ClusterSummary.NetworkCombination.iloc[cluster - 1]}")
+            title = (f"Cluster {cluster} — {result.ClusterSummary.NetworkCombination.iloc[cluster - 1]}"
+                     f" (n = {mask.sum()} sources)")
+            fig = plt.figure(figsize=(8.6, 5.8), constrained_layout=True)
+            grid = fig.add_gridspec(2, 2, height_ratios=(3.4, 1))
+            profile_ax = fig.add_subplot(grid[1, :])
+            for column, (elevation, azimuth, label) in enumerate(
+                ((18, -60, "Oblique view"), (75, -90, "View from above"))
+            ):
+                brain_ax = fig.add_subplot(grid[0, column], projection="3d")
+                _brain_surface(brain_ax)
+                brain_ax.scatter(coords[mask, 0], coords[mask, 1], coords[mask, 2],
+                                 s=brainmarkersize, c=[cluster_color], alpha=0.8)
+                brain_ax.view_init(elev=elevation, azim=azimuth)
+                brain_ax.set_title(label, fontsize=11)
+                brain_ax.set_axis_off()
+            for column, pc in enumerate(pcs):
+                lane = len(pcs) - column
+                profile_ax.axhline(lane, color="0.82", linewidth=0.8, zorder=0)
+                nonzero = values[:, column][values[:, column] != 0]
+                jitter = (np.mod(np.arange(1, len(nonzero) + 1) * 0.61803398875, 1) - 0.5) * 0.32
+                profile_ax.scatter(nonzero, lane + jitter, s=12, alpha=0.7, color=cluster_color)
+            profile_ax.set_yticks(np.arange(len(pcs), 0, -1), [f"PC{pc}" for pc in pcs])
+            profile_ax.set_ylim(0.55, len(pcs) + 0.45)
+            profile_ax.set_xlabel("Spatial activation")
+            profile_ax.set_title("Activation profile")
+            profile_ax.spines[["top", "right", "left"]].set_visible(False)
+            profile_ax.tick_params(axis="y", length=0)
+            fig.suptitle(title)
             _finish(fig, settings, figures, f"OptimalK_{result.optimalK:02d}_Cluster_{cluster:02d}_ProfileAndBrain")
     if settings.MakeSummary:
         fig = plt.figure(figsize=(11, 4.8), constrained_layout=True)

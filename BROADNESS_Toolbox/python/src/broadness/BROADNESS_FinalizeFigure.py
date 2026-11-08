@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 import pickle
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -42,7 +43,21 @@ def BROADNESS_FinalizeFigure(
                             bbox_inches="tight", facecolor="white")
             paths.append(path)
     if Settings.Show:
-        fig.show()
+        try:
+            from IPython import get_ipython
+        except ImportError:
+            shell = None
+        else:
+            shell = get_ipython()
+        if shell is not None and shell.__class__.__name__ == "ZMQInteractiveShell":
+            from IPython.display import Image, display
+
+            preview = BytesIO()
+            fig.savefig(preview, format="png", dpi=110, bbox_inches="tight")
+            display(Image(data=preview.getvalue(), width=min(760, int(fig.get_figwidth() * 110))))
+            plt.close(fig)
+        elif plt.get_backend().lower() != "agg":
+            fig.show()
     else:
         plt.close(fig)
     return paths

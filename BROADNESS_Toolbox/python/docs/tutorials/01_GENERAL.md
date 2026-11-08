@@ -18,41 +18,30 @@ the [published Zenodo dataset](https://zenodo.org/records/17048137).
 
 | Section | What to do | What to inspect in Variables |
 | --- | --- | --- |
-| 0 | Keep `TUTORIAL_MODE = True` and `USE_PARTICIPANTS = False`. Confirm the printed `Data` folder. | `data_path` |
-| 1 | Load the averaged file and estimate two PCA networks. | `data` has shape `(128, 160, 5)`; `BROADNESS.TimeSeries_BrainNetworks` has shape `(160, 2, 5)` |
+| 0 | Keep `USE_PARTICIPANTS = False` and confirm the printed `Data` folder. The example now uses the full averaged file by default. | `data_path` |
+| 1 | Load the averaged file and estimate two PCA networks. | `data` has shape `(3559, 776, 5)`; `BROADNESS.TimeSeries_BrainNetworks` has shape `(776, 2, 5)` |
 | 1b | Optional comparison of PCA settings. Change `RUN_ALTERNATIVE_PCA` to `True` only when wanted. | `BROADNESS_ALTERNATIVE` |
 | 1-extension | Calculate effective dimensionality from the PCA variance spectrum. | `effective_dimensionality` |
-| 2 | Display variance and network time-series figures. | `visualization` and its `Figures` |
-| 2b | Click **Run Cell** to plot the 3D map. This cell uses the full averaged file, so the map has all 3,559 source locations. | `BROADNESS_SPATIAL`, `spatial_visualization` |
+| 2 | Export NIfTI images and activation tables for the two networks. | `visualization.nifti_paths`, `visualization.activation_table_paths` |
 | 3 | Calculate phase trajectories and RQA measures. | `RQA_BROADNESS.RQA_metrics[0]` |
 | 3b | Calculate descriptive phase-space measures. Averaged data do not support participant-level inference. | `PHASE_STATS.Metrics.Speed` |
-| 4 | Cluster source activation patterns. | `SPATIAL_CLUSTERING_BROADNESS` |
+| 4 | Cluster source activation patterns. Each cluster figure shows an oblique brain view and a view from above, with a compact PC activation profile below. | `SPATIAL_CLUSTERING_BROADNESS` |
 | 5 and 5b | Estimate two ICA networks and visualize their time series. | `BROADNESS_ICA`, `ICA_VISUALIZATION` |
 
-In section 0, change `FIGURE_MODE` to `"save"` to write figures under
-`BROADNESS_Toolbox/Output/`. That folder stays on your computer and is ignored
-by Git. `"off"` suppresses figures.
+Section 2 writes the NIfTI images and activation tables under
+`BROADNESS_Toolbox/Output/`; that folder stays on your computer and is ignored
+by Git. Section 4 shows the clustering figures.
 
-## Rotate the 3D brain in VS Code
+## Inspect the brain from two angles
 
-1. Run sections 0 and 1, then click **Run Cell** for section 2b. Keep
-   `FIGURE_MODE = "show"` (or `"both"`). The visualizer enables the interactive
-   widget automatically in the VS Code Interactive Window.
-2. Drag inside the resulting 3D figure to rotate it; use the mouse wheel or
-   trackpad scroll to zoom. The ordinary inline image and saved PNG are static.
+Run sections 0 and 1, then click **Run Cell** for section 4. Each cluster
+figure shows an oblique view and a view from above, with the PC activation
+profile below them. These are ordinary figures that fit in the Interactive
+Window; there is no dragging or extra 3D renderer to install. Restart the
+Interactive Window kernel once if you previously ran the old widget version.
 
-If the figure stays static, run `bash setup_vscode.sh` from the `python/`
-folder on macOS/Linux, or `.\setup_vscode.bat` on Windows. Then restart the
-**Interactive Window kernel** and rerun sections 0, 1, and 2b. The setup script
-installs the small `ipympl` plotting widget into this project's `.venv`.
-
-Section 2b uses the complete averaged file by default, even though sections 1
-and 2 use the small tutorial subset. It does this so the spatial pattern is
-based on the same spatial and temporal resolution as the MATLAB example. The
-full averaged array is about 55 MB in memory; it does not read participant
-files. `BROADNESS_SPATIAL` is separate from the earlier `BROADNESS` result.
-The 3D widget may rotate less smoothly than MATLAB because Matplotlib redraws
-the brain surface as you drag.
+The default example uses the full averaged array, about 55 MB in memory, and
+does not read participant files. Saved PNG/PDF figures use the same two views.
 
 ## Try a few individual participants
 
@@ -65,11 +54,12 @@ Participant data add a fourth axis: sources × time × conditions × participant
 
 ## When moving beyond the lesson
 
-`TUTORIAL_MODE = True` deliberately selects 128 of 3,559 sources and 160 of
-776 time samples across the real dataset. It is a software lesson, not a
-reproduction of the paper's analysis. For full resolution, set
-`TUTORIAL_MODE = False`; when using participants, set `MAX_PARTICIPANTS = None`
-only after deciding how many files and how much memory to use. Full PCA,
+The example now starts with `TUTORIAL_MODE = False` and the full averaged
+file. Setting it to `True` selects 128 of 3,559 sources and 160 of 776 time
+samples for a quicker software lesson, but the spatial maps will be sparse
+and unsuitable for scientific interpretation. When using participants, set
+`MAX_PARTICIPANTS = None` only after deciding how many files and how much
+memory to use. Full PCA,
 participant projection, figures, and RQA can take substantially longer; RQA
 also holds time × time matrices. The MATLAB and Python implementations have
 not yet been directly compared numerically on the complete dataset. The loader

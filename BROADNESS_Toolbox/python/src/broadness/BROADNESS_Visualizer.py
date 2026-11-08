@@ -63,9 +63,9 @@ To export NIfTI images and Excel tables, select the fifth output and provide
 
 OUTPUT
 ------
-The function returns a ``BROADNESSVisualization`` object containing the
-generated Matplotlib figures and exported-file paths. Users do not construct
-this object themselves. Use, for example::
+The function returns a ``BROADNESSVisualization`` object containing generated
+Matplotlib figures and exported-file paths. Users do not construct this object
+themselves. Use, for example::
 
     VISUALIZATION.variance_figure
     VISUALIZATION.time_series_figures
@@ -415,32 +415,6 @@ def _matplotlib():
             "Install broadness[visualize]."
         ) from error
     return plt
-
-
-def _enable_widget_for_spatial_plot() -> None:
-    """Use mouse-rotatable 3D figures in Jupyter when ipympl is installed."""
-    try:
-        from IPython import get_ipython
-        import matplotlib
-    except ImportError:
-        return
-    shell = get_ipython()
-    if shell is None or shell.__class__.__name__ != "ZMQInteractiveShell":
-        return
-    backend = matplotlib.get_backend().lower()
-    if "ipympl" in backend or "inline" not in backend:
-        return
-    try:
-        import ipympl  # noqa: F401 - needed by the widget backend
-    except ImportError:
-        warnings.warn(
-            "Install broadness[vscode] and restart the Jupyter kernel to rotate "
-            "the 3D spatial plot with the mouse.",
-            UserWarning,
-            stacklevel=3,
-        )
-        return
-    shell.run_line_magic("matplotlib", "widget")
 
 
 def _publication_style() -> dict[str, Any]:
@@ -821,18 +795,9 @@ def _spatial_pattern_plot(
         raise ValueError('"Options.MNI_coords" contains no valid coordinates')
 
     surface_vertices, surface_faces = _mni_brain_surface()
-    figure = plt.figure(figsize=(9.2, 7.3), constrained_layout=True)
-    axis = figure.add_subplot(111, projection="3d")
-    brain_surface = Poly3DCollection(
-        surface_vertices[surface_faces],
-        facecolor=(0.56, 0.61, 0.66, 0.075),
-        edgecolor="none",
-        linewidth=0,
-    )
-    brain_surface.set_rasterized(True)
-    axis.add_collection3d(brain_surface)
-
+    figure = plt.figure(figsize=(8.6, 4.8), constrained_layout=True)
     legend_handles: list[Line2D] = []
+    markers = []
     for position, component in enumerate(components):
         values = activation_patterns[:, component]
         mask = valid_coordinates & _positive_threshold(values)
@@ -846,18 +811,7 @@ def _spatial_pattern_plot(
             order = np.argsort(normalized, kind="stable")
             selected_coordinates = coordinates[mask][order]
             marker_sizes = 14.0 + 82.0 * normalized[order]
-            axis.scatter(
-                selected_coordinates[:, 0],
-                selected_coordinates[:, 1],
-                selected_coordinates[:, 2],
-                s=marker_sizes,
-                color=colors[position],
-                alpha=0.86,
-                edgecolors="white",
-                linewidths=0.35,
-                depthshade=False,
-                rasterized=True,
-            )
+            markers.append((selected_coordinates, marker_sizes, colors[position]))
         legend_handles.append(
             Line2D(
                 [0],
@@ -871,20 +825,33 @@ def _spatial_pattern_plot(
             )
         )
 
-    axis.view_init(elev=18, azim=-68)
-    _equal_3d_axes(
-        axis,
-        np.concatenate((brain_coordinates, surface_vertices), axis=0),
-    )
-    axis.set_axis_off()
-    axis.set_title("Spatial activation patterns of brain networks", pad=14)
-    if legend_handles:
-        axis.legend(
-            handles=legend_handles,
-            frameon=False,
-            loc="upper left",
-            bbox_to_anchor=(0.0, 0.98),
+    for view, (elevation, azimuth, label) in enumerate(
+        ((18, -60, "Oblique view"), (75, -90, "View from above")), start=1,
+    ):
+        axis = figure.add_subplot(1, 2, view, projection="3d")
+        brain_surface = Poly3DCollection(
+            surface_vertices[surface_faces],
+            facecolor=(0.56, 0.61, 0.66, 0.075),
+            edgecolor="none",
+            linewidth=0,
         )
+        brain_surface.set_rasterized(True)
+        axis.add_collection3d(brain_surface)
+        for selected_coordinates, marker_sizes, color in markers:
+            axis.scatter(
+                selected_coordinates[:, 0], selected_coordinates[:, 1],
+                selected_coordinates[:, 2], s=marker_sizes, color=color,
+                alpha=0.86, edgecolors="white", linewidths=0.35,
+                depthshade=False, rasterized=True,
+            )
+        axis.view_init(elev=elevation, azim=azimuth)
+        _equal_3d_axes(axis, np.concatenate((brain_coordinates, surface_vertices), axis=0))
+        axis.set_axis_off()
+        axis.set_title(label, pad=4)
+    figure.suptitle("Spatial activation patterns of brain networks")
+    if legend_handles:
+        figure.legend(handles=legend_handles, frameon=False, loc="lower center",
+                      ncol=len(legend_handles))
     return figure
 
 
@@ -1079,8 +1046,6 @@ def BROADNESS_Visualizer(
     print("Checking visualizer inputs")
     inputs = _canonical_inputs(BROADNESS)
     which_plots = _which_plots(Options)
-    if which_plots[3] and settings.Show and show:
-        _enable_widget_for_spatial_plot()
     components = _selected_components(BROADNESS, Options, inputs)
     labels = _labels(Options, inputs.data.shape[2])
     if (
@@ -1212,7 +1177,7 @@ def BROADNESS_Visualizer(
         final_settings = settings if show else replace(settings, Show=False)
         for fig, filename in figure_jobs:
             figure_paths.extend(BROADNESS_FinalizeFigure(fig, final_settings, filename))
-    elif settings.Show and show and plt is not None:
+    elif settings.Show and show and plt is not None and figure_jobs:
         plt.show()
     figure_handles = [fig for fig, _ in figure_jobs] if settings.Show and (not settings.Save or show) else []
 
